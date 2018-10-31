@@ -47,7 +47,8 @@ makeBlockIndices <- function(index)
 ################################################################################
 permutationTest = function(Q, TS, index, direction = directionVector, alpha = alpha, Z=Z, subSampleSize = 500)
 {
-  
+  populationSize = dim(Q)[2] #the number of individuals in the population (N in standard notation)
+
   ################################################################################
   #                           Calculate the optimal lambdas 
   #                           and observed test statistic
@@ -64,7 +65,7 @@ permutationTest = function(Q, TS, index, direction = directionVector, alpha = al
   nt = tapply(Z, block.ind, sum) # The number of treated indiv. in each block
   nc = tapply(1-Z, block.ind, sum) # The number of control indiv. in each block
   
-  randomizationMatrix = matrix(0, populationSize, subSampleSize)
+  randomizationMatrix = matrix(0, nrow = populationSize, ncol = subSampleSize)
   
   #creates a matrix of other randomized treatment allocations (respecting the initial stratification)
   for(s in 1:B)
@@ -89,8 +90,8 @@ permutationTest = function(Q, TS, index, direction = directionVector, alpha = al
   #                           Compute p-values from the permutation test
   ################################################################################
   alpha = .05 # The significance level
-  pValue_Upper = (length(which(randomizationOfTreatment >= observedTestStatistic)) + 1) / length(randomizationOfTreatment) #p-value for greater than test
-  pValue_Lower = (length(which(randomizationOfTreatment <= observedTestStatistic)) + 1) / length(randomizationOfTreatment) #p-value for less than test
-
+  pValue_Upper = length(which(randomizationOfTreatment >= observedTestStatistic)) / (length(randomizationOfTreatment) + 1) #p-value for greater than test
+  pValue_Lower = length(which(randomizationOfTreatment <= observedTestStatistic)) / (length(randomizationOfTreatment) + 1) #p-value for less than test
+  
   return(list(reject = (pValue_Upper <= alpha))) #currently just outputs the rejection for the greater-than test.
 }

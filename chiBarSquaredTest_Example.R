@@ -34,7 +34,7 @@ alpha = .05
 verbose = TRUE
 
 #Toggles diagnostics
-showDiagnostics = TRUE
+showDiagnostics = FALSE
 
 
 ################################################################################
@@ -86,13 +86,13 @@ Q = t(Q) #We need to transpose the Q matrix to fit the format of the chiBarSquar
 sensitivityResult = chiBarSquaredTest(Q = Q, #the data matrix
                                 matchedSetAssignments = matchedSetAssignments, #the stratum numbers for the individuals
                                 treatmentIndicator = Z, #the treatment indicator
-                                numGamma = 10, #the number of Gammas to try
+                                numGamma = 15, #the number of Gammas to try
                                 alpha = .05, #the significance level of the test
                                 directions = "Greater", #the directions of each hypothesis
                                 step = 100, #optimization hyperparameter
                                 maxIter = 1000, #optimization hyperparameter
-                                showDiagnostics = FALSE, #whether or not diagonstics are output
-                                verbose = FALSE,
+                                showDiagnostics = showDiagnostics, #whether or not diagonstics are output
+                                verbose = verbose,
                                 outputDirName = "Example_Sensitivity_Analysis_Results")
 
 

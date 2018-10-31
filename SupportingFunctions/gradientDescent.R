@@ -12,7 +12,7 @@
 #     betam: momentum term for gradient update
 ################################################################################
 
-gradientDescent_Constrained <- function(Q, TS, index, Gamma, rho0, s0, step,
+gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step,
                                         maxIter, betam, alpha, Z){
   I <- length(index) #number of strata
   N <- dim(Q)[2] #population size
@@ -116,8 +116,8 @@ gradientDescent_Constrained <- function(Q, TS, index, Gamma, rho0, s0, step,
         }
         
         # iteration processing
-        if(iter %% 10 == 0 && verbose == TRUE)
-          cat("Iter: ", iter, "    Obj. Val:", fval[iter], "\n")
+        if(iter %% 10 == 0 && showDiagnostics == TRUE)
+          cat("Iteration: ", iter, "    Obj. Val:", fval[iter], "\n")
         iter <- iter + 1
         tt <- step/sqrt(iter)
       }else{

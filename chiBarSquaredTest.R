@@ -36,7 +36,12 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
     source(fileName)
   }
   
-  require(c(doParallel, mvtnorm, gurobi, Matrix, quadprog)) #imports all required packages
+  #imports all required packages
+  require(doParallel)
+  require(mvtnorm) #for multivariate normal computations
+  require(gurobi) #for using methods from Fogarty & Small 2016
+  require(Matrix) #for storing matrices
+  require(quadprog) #for solving quadratic programs
   
   K = dim(Q)[1] #the number of variables we observe
   populationSize = dim(Q)[2] #the number of individuals in the population (N in standard notation)
@@ -80,22 +85,21 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
   Q = t(scale(t(Q), center = FALSE, scale = TRUE)) #scales all the rows to have unit standard deviation. does not center them. (helps with numerical stability)
   
   TS = as.vector(Q %*% Z) #the vector of observed test statistics for each of the K outcomes
-  
-  
+
   if(verbose == TRUE)
   {
     cat('\nThe data was loaded.\n')
     cat("The population size is:", populationSize, "\n")
     cat("The number of variables is:", length(TS), "\n")
     cat("The hypothesis directions are:\n")
-    print(directionVector)
+    print(directions)
     cat("The significance level is", alpha, "\n")
   }
   
   ################################################################################
   #               Perform the Double-and-Halve Sensitivity Analysis
   ################################################################################
-  InitialGamma = 18 #this is based upon the sensitivity analysis using Fogarty-Small (2016)
+  InitialGamma = 1
   smallestFailedGamma = Inf
   LargestRejectGamma = 1
   triedGammas = c()
@@ -104,13 +108,14 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
 
   while(length(triedGammas) <= numGamma)
   {
-    if(showDiagnostics == TRUE) cat("Trying Gamma =", Gamma, "\n") #diagnostic
+    if(verbose == TRUE) cat("Trying Gamma =", Gamma, "\n") #diagnostic
 
     if(Gamma == 1)
     {
-      reject = permutationTest(Q, TS, index, Gamma, direction = directionVector, alpha = alpha, Z=Z)
+      reject = permutationTest(Q = Q, TS = TS, index = index, direction = directions, alpha = alpha, Z=Z, subSampleSize = 500)
     }else{
-      reject = computeTestStatistic(Q, TS, index, Gamma, direction = directionVector, alpha = alpha, Z=Z)
+      reject = computeTestStatistic(Q, TS, index, Gamma, direction = directions, alpha = alpha, Z=Z, step = step,
+                                    maxIter = maxIter)
     }
 
     triedGammas = c(triedGammas, Gamma)
@@ -118,12 +123,12 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
     if(reject$reject == TRUE) #doubles the Gamma to try next
     {
       LargestRejectGamma = max(Gamma, LargestRejectGamma)
-      if(showDiagnostics == TRUE) cat("Rejected null at Gamma =", Gamma, "\n")
+      if(verbose == TRUE) cat("Rejected null at Gamma =", Gamma, "\n")
     }
 
     if(reject$reject == FALSE) #the next Gamma is the average of the last two Gammas tried (one which rejected and one which failed to reject)
     {
-      if(showDiagnostics == TRUE) cat("Failed to reject null at Gamma =", Gamma, "\n")
+      if(verbose == TRUE) cat("Failed to reject null at Gamma =", Gamma, "\n")
 
       smallestFailedGamma = min(Gamma, smallestFailedGamma)
     }
@@ -133,7 +138,7 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
       Gamma = 2*Gamma
     }else if (smallestFailedGamma == 1)
     {
-      if(showDiagnostics == TRUE) cat("Permuration test at Gamma = 1 failed to reject.\n")
+      if(verbose == TRUE) cat("Permuration test at Gamma = 1 failed to reject.\n")
       break
     }else
     {
@@ -169,11 +174,11 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
   dir.create(outputDirName)
   
   if(smallestFailedGamma != 1){
-    write(paste("Sensitivity Analysis Completed:\n\tThe largest Gamma at which the null hypothesis was rejected = ", LargestRejectGamma, "\n\tThe smallest Gamma at which the null failed to be rejected = ", smallestFailedGamma, "\n"), file = './Sensitivity_Analysis_Results/Sensitivity_Analysis_textOutput.txt')
+    write(paste("Sensitivity Analysis Completed:\n\tThe largest Gamma at which the null hypothesis was rejected = ", LargestRejectGamma, "\n\tThe smallest Gamma at which the null failed to be rejected = ", smallestFailedGamma, "\n"), file = paste('./',outputDirName, '/Sensitivity_Analysis_textOutput.pdf', sep = ''))
   }else{
-    write("At Gamma = 1, the null hypothesis fails to be rejected.\n", file = './FullNaphthaleneSensitivityAnalysis/FullNaphthaleneSensitivityAnalysis_textOutput.txt')
+    write("At Gamma = 1, the null hypothesis fails to be rejected.\n", file =  paste('./',outputDirName, '/Sensitivity_Analysis_textOutput.pdf', sep = ''))
   }
-  pdf('./Sensitivity_Analysis_Results/Sensitivity_Analysis_imageOutput.pdf')
+  pdf(paste('./',outputDirName, '/Sensitivity_Analysis_imageOutput.pdf', sep = ''))
   plot(x = 1:length(triedGammas),
        y = triedGammas,
        type = 'l',
