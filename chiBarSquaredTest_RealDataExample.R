@@ -1,5 +1,5 @@
 ################################################################################
-#                   An example of how to use the chibarsq code
+#               An example of how to use the chibarsq code on real data
 ################################################################################
 
 ################################################################################
@@ -94,6 +94,3 @@ sensitivityResult = chiBarSquaredTest(Q = Q, #the data matrix
                                 showDiagnostics = showDiagnostics, #whether or not diagonstics are output
                                 verbose = verbose,
                                 outputDirName = "Example_Sensitivity_Analysis_Results")
-
-
-

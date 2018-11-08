@@ -45,7 +45,7 @@ makeBlockIndices <- function(index)
 ################################################################################
 #                         Performs a permutation test
 ################################################################################
-permutationTest = function(Q, TS, index, direction = directionVector, alpha = alpha, Z=Z, subSampleSize = 500)
+permutationTest = function(Q, TS, index, alpha = alpha, Z=Z, subSampleSize = 500)
 {
   populationSize = dim(Q)[2] #the number of individuals in the population (N in standard notation)
 

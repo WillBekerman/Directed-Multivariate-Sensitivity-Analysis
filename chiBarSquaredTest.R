@@ -25,6 +25,7 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
                              showDiagnostics = FALSE, verbose = FALSE,
                              outputDirName = "Sensitivity_Analysis_Results")
 {
+  
   ################################################################################
   #                         Set-up (load packages, format data)
   ################################################################################
@@ -48,7 +49,7 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
   
   Z = treatmentIndicator #conforming with standard notation
   
-  if(directions == "Greater")
+  if(all(directions == "Greater")) #If the user enters only "Greater"  as the only direction even when K > 1 the default is that all directions are "Greater"
   {
     directions = rep("Greater", K)
   }
@@ -84,16 +85,41 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
   
   Q = t(scale(t(Q), center = FALSE, scale = TRUE)) #scales all the rows to have unit standard deviation. does not center them. (helps with numerical stability)
   
-  TS = as.vector(Q %*% Z) #the vector of observed test statistics for each of the K outcomes
-
   if(verbose == TRUE)
   {
     cat('\nThe data was loaded.\n')
     cat("The population size is:", populationSize, "\n")
-    cat("The number of variables is:", length(TS), "\n")
+    cat("The number of variables is:", K, "\n")
     cat("The hypothesis directions are:\n")
     print(directions)
     cat("The significance level is", alpha, "\n")
+  }
+  
+  ################################################################################
+  #               Modify Q to account for different directional choices
+  ################################################################################
+  directionsScaling = rep(1, length = K)
+  directionsScaling[directions == 'Less'] = -1
+  print(directionsScaling)
+  
+  #print(t(head(t(Q))))
+  
+  Q = diag(directionsScaling)%*%Q #multiplies each row for which there is a "Less" direction by negative 1, then the code proceeds by testing "Greater" directions on this pre-processed data.
+  
+
+  
+  print(t(head(t(Q))))
+  
+  
+  ################################################################################
+  #               Compute the univariate test statistics
+  ################################################################################
+  
+  TS = as.vector(Q %*% Z) #the vector of observed test statistics for each of the K outcomes
+  if(verbose == TRUE)
+  {
+    cat("The univariate test statistics after adjusting for directions are:\n")
+    print(TS)
   }
   
   ################################################################################
@@ -106,15 +132,15 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
 
   Gamma = InitialGamma
 
-  while(length(triedGammas) <= numGamma)
+  while(length(triedGammas) < numGamma)
   {
     if(verbose == TRUE) cat("Trying Gamma =", Gamma, "\n") #diagnostic
 
     if(Gamma == 1)
     {
-      reject = permutationTest(Q = Q, TS = TS, index = index, direction = directions, alpha = alpha, Z=Z, subSampleSize = 500)
+      reject = permutationTest(Q = Q, TS = TS, index = index, alpha = alpha, Z=Z, subSampleSize = 500)
     }else{
-      reject = computeTestStatistic(Q, TS, index, Gamma, direction = directions, alpha = alpha, Z=Z, step = step,
+      reject = computeTestStatistic(Q, TS, index, Gamma, alpha = alpha, Z=Z, step = step,
                                     maxIter = maxIter)
     }
 
@@ -124,6 +150,7 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
     {
       LargestRejectGamma = max(Gamma, LargestRejectGamma)
       if(verbose == TRUE) cat("Rejected null at Gamma =", Gamma, "\n")
+      if(showDiagnostics == TRUE) cat("The lambdas are: \t", reject$lambdas)
     }
 
     if(reject$reject == FALSE) #the next Gamma is the average of the last two Gammas tried (one which rejected and one which failed to reject)
@@ -149,10 +176,11 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
     plot(x = 1:length(triedGammas),
          y = triedGammas,
          type = 'l',
-         xlab = 'iteration',
-         ylab = 'Gamma',
-         main = "Gamma vs. Iteration",
-         lwd = 3
+         xlab = 'Iteration',
+         ylab = expression(paste(Gamma)),
+         main =  expression(paste(Gamma, " vs. Iteration", sep = '')),
+         lwd = 3,
+         las = 1
     )
   }
   

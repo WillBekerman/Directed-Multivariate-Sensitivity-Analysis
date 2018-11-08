@@ -3,7 +3,7 @@
 #                         Chi-Bar-Squared Test 
 #                         (See appendix of Cohen, Olson, and Fogarty 2018)
 ################################################################################
-computeTestStatistic = function(Q, TS, index, Gamma, direction, Z,
+computeTestStatistic = function(Q, TS, index, Gamma, Z,
                                              alpha,  step, maxIter)
 {
   BETA <- 0.4 #Hyperparameter of optimization alg. (momentum term for gradient update)
