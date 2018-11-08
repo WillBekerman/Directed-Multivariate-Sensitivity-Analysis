@@ -6,7 +6,7 @@
 #                                   Set Up
 ################################################################################
 # install.packages('DOS') #Install the 'DOS' package (if you have not already done) so by uncommenting an running this line
-library('DOS')
+library('DOS') #The R package to "Design of Observational Studies" (2010) by P. Rosenbaum
 source(file = "./chiBarSquaredTest.R")
 
 ################################################################################

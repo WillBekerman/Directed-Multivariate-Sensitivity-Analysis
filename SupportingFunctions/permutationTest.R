@@ -90,8 +90,8 @@ permutationTest = function(Q, TS, index, direction = directionVector, alpha = al
   #                           Compute p-values from the permutation test
   ################################################################################
   alpha = .05 # The significance level
-  pValue_Upper = length(which(randomizationOfTreatment >= observedTestStatistic)) / (length(randomizationOfTreatment) + 1) #p-value for greater than test
-  pValue_Lower = length(which(randomizationOfTreatment <= observedTestStatistic)) / (length(randomizationOfTreatment) + 1) #p-value for less than test
+  pValue_Upper = (length(which(randomizationOfTreatment >= observedTestStatistic)) + 1) / (length(randomizationOfTreatment) + 1) #p-value for greater than test
+  pValue_Lower = (length(which(randomizationOfTreatment <= observedTestStatistic)) + 1) / (length(randomizationOfTreatment) + 1) #p-value for less than test
   
   return(list(reject = (pValue_Upper <= alpha))) #currently just outputs the rejection for the greater-than test.
 }
