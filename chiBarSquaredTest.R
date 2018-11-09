@@ -2,22 +2,23 @@
 #                         Chi-Bar-Squared Test 
 #                         (Uses the method of Cohen, Olson, and Fogarty 2018)
 ################################################################################
-#INPUTS
-  # 'Q' is the matrix of the q_{ijk}.  It has K rows (the number of outcomes) and N columns (the number of individuals)
-  # 'matchedSetAssignments' is the vector where the t^th element is the is the number of the matched set for the t^th individual
-  # 'treatmentIndicator' is the vector where the t^th element is the indicator of treatment for the t^th individual (0 if control, 1 if treated)
-  # 'numGamma' is the number of Gamma to try in a double-and-halve sensitivity analysis (defaults to 10)
-  # 'alpha' is the significance level of the test (defaults to .05)
-  # 'directions' is the vector where the k^th element is the direction of the alternative for the k^th outcome (Accepts "Less" or "Greater" in each entry), (defaults to "Greater" in all entries)
-  
-  # 'step' is the step-size in the subgradient descent (defaults to 100)
-  # 'maxIter' is the maximum number of iterations of subgradient descent (defaults to 1000)
-  
-  # 'showDiagnostics' toggles diagnostics to be shown
-  # 'verbose' toggles extra text output
-  # 'outputDirName' is a string for the name of the directory to output the results to (defaults to ""Sensitivity_Analysis_Results")
-# RETURNS:
-  # 'LargestRejectGamma' the largest Gamma such that the null hypothesis was rejected
+#' Chi-Bar-Squared Test
+#' 
+#' Implementation of the method of Cohen, Olson, and Fogarty 2018
+#' 
+#' @param Q the matrix of the q_{ijk}.  It has K rows (the number of outcomes) and N columns (the number of individuals)
+#' @param matchedSetAssignments the vector where the t^th element is the is the number of the matched set for the t^th individual
+#' @param treatmentIndicator the vector where the t^th element is the indicator of treatment for the t^th individual (0 if control, 1 if treated)
+#' @param numGamma the number of Gamma to try in a double-and-halve sensitivity analysis (defaults to 10)
+#' @param alpha the significance level of the test (defaults to .05)
+#' @param directions the vector where the k^th element is the direction of the alternative for the k^th outcome (Accepts "Less" or "Greater" in each entry), (defaults to "Greater" in all entries)
+#' @param step the step-size in the subgradient descent (defaults to 100)
+#' @param maxIter the maximum number of iterations of subgradient descent (defaults to 1000)
+#' @param showDiagnostics toggles diagnostics to be shown
+#' @param verbose toggles extra text output
+#' @param outputDirName a string for the name of the directory to output the results to (defaults to ""Sensitivity_Analysis_Results")
+#' 
+#' @return LargestRejectGamma the largest Gamma such that the null hypothesis was rejected
 
 chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator, 
                              numGamma = 10, alpha = .05, directions = "Greater",
