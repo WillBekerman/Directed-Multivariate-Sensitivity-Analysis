@@ -57,7 +57,8 @@ makeBlockIndices <- function(index)
 #' @param alpha the significance level of the test (defaults to .05)
 #' @param subSampleSize the number of samples to take when performing the permutation test
 #' 
-#' @return reject: indicator of rejection and lambdas: an optimal weighting of the outcomes
+#' @return reject: indicator of rejection
+#' @return  lambdas: an optimal weighting of the outcomes
 #' 
 #' @export
 

@@ -10,6 +10,19 @@
 # OUTPUT:
 #       out: list with the projection, elements s and rho
 #
+
+#' Projects gradient step
+#' 
+#' Projects a gradient step from projected subgradient descent onto the feasible region.
+#' 
+#' @param g the gradient step of the form (x, s) - t*(dx_J, ds_j)
+#' @param Gamma the sensitivity parameter
+#' 
+#' @return reject: indicator of rejection
+#' @return out: list with the projection, elements s and rho
+#' 
+#' @export
+ 
 constraintProject <- function(Gamma, g){
   n <- length(g) - 1
   Dmat <- diag(rep(1,n+1))

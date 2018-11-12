@@ -23,7 +23,7 @@
 #' @param Gamma the sensitivity parameter
 #' 
 #' @return the maximal correlation
-
+#' @export
 
 minCorFullMatching = function(Q, index, Gamma)
 {

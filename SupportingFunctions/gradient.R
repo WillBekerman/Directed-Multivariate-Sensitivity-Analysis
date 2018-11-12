@@ -8,7 +8,8 @@
 #' @param TS the univariate test statistics
 #' @param index the indexing of the units in the experiment
 #' 
-#' @return the objective value and the gradient
+#' @return obj: the objective value 
+#' @return grad: the gradient
 #' 
 #' @export
 

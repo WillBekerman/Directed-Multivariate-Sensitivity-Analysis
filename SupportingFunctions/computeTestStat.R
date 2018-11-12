@@ -17,7 +17,8 @@
 #' @param step the step-size in the subgradient descent (defaults to 100)
 #' @param maxIter the maximum number of iterations of subgradient descent (defaults to 1000)
 #' 
-#' @return reject: indicator of rejection and lambdas: an optimal weighting of the outcomes
+#' @return reject: indicator of rejection
+#' @return lambdas: an optimal weighting of the outcomes
 #' 
 #' @export
 

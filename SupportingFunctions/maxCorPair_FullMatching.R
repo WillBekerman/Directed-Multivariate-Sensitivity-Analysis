@@ -21,6 +21,8 @@
 #' @param Gamma the sensitivity parameter
 #' 
 #' @return the maximal correlation
+#' 
+#' @export
 
 
 maxCorFullMatching = function(Q, index, Gamma)

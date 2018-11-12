@@ -5,15 +5,34 @@
 #             It is based upon the methods in the paper:
 #                 Fogarty, C. and Small, D. (2016). Sensitivity Analysis for Multiple Comparisons in Matched Observational Studies through Quadratically Constrained Linear Programming. Journal of the American Statistical Association: Theory and Methods,111 (516), 1820-1830 
 ################################################################################
-multipleComparisonsRoot = function(Gamma,index, Q, Z, alpha = 0.05, alternative = "TS", critval = NULL)
+
+
+#' Multiple Comparisons in Sensitivity Analysis
+#' 
+#' Multivariate sensitivity analysis via quadratically constrained linear programming.  Based upon the paper: Fogarty, C. and Small, D. (2016). Sensitivity Analysis for Multiple Comparisons in Matched Observational Studies through Quadratically Constrained Linear Programming. Journal of the American Statistical Association: Theory and Methods,111 (516), 1820-1830 
+#' 
+#' @param Q the data matrix (each row is one individual, each column is one outcome)
+#' @param matchedSetAssignments the vector where the t^th element is the is the number of the matched set for the t^th individual
+#' @param Gamma the sensitivity parameter
+#' @param Z the treatment indicator
+#' @param alpha the significance level
+#' @param alternative a vector of directions for the K elementary alternative hypotheses
+#' @param critval the critical value to use
+#' 
+#' @return Reject: objective value of optimization problem
+#' 
+#' @export
+
+
+multipleComparisonsRoot = function(Gamma,matchedSetAssignments, Q, Z, alpha = 0.05, alternative = "TS", critval = NULL)
 {
   
   Z = 1*Z
   
-  ns = table(index)
-  ms = table(index[Z==1])
+  ns = table(matchedSetAssignments)
+  ms = table(matchedSetAssignments[Z==1])
   
-  nostratum = length(unique(index))
+  nostratum = length(unique(matchedSetAssignments))
   
   
   
@@ -34,7 +53,7 @@ multipleComparisonsRoot = function(Gamma,index, Q, Z, alpha = 0.05, alternative 
   {
     if(ms[i] > 1)
     {
-      ind = which(index==i)
+      ind = which(matchedSetAssignments==i)
       Z[ind] = 1-Z[ind]
       for(k in 1:K)
       {
@@ -93,10 +112,10 @@ multipleComparisonsRoot = function(Gamma,index, Q, Z, alpha = 0.05, alternative 
   SDS = matrix(sds, nrow(PO), ncol(PO), byrow = T)
   Qmat= (PO/SDS)
   
-  ns = table(index)
+  ns = table(matchedSetAssignments)
   ns.types = (ns-1)
   N.total = nrow(Qmat)
-  NS = matrix(ns[index], N.total, K)
+  NS = matrix(ns[matchedSetAssignments], N.total, K)
   nullexpec = colSums(Qmat/NS)
   
   
@@ -124,7 +143,7 @@ multipleComparisonsRoot = function(Gamma,index, Q, Z, alpha = 0.05, alternative 
   nvariables = K*(nostratum+1)+N.total+nostratum+(K-nTS)+1
   for(i in 1:nostratum)
   {
-    ind = which(index==i)
+    ind = which(matchedSetAssignments==i)
     row.ind[ind] = rep(i, length(ind))
     col.ind[ind] = ind
     values[ind] = 1
@@ -139,7 +158,7 @@ multipleComparisonsRoot = function(Gamma,index, Q, Z, alpha = 0.05, alternative 
     {
       for(i in 1:nostratum)
       {
-        ind = which(index==i)  	
+        ind = which(matchedSetAssignments==i)  	
         row.ind[(k-1)*(2*N.total+nostratum+1)+ c(N.total + ind, 2*N.total + i)] = rep((k-1)*(nostratum+1) + nostratum+i, length(ind)+1)
         col.ind[(k-1)*(2*N.total+nostratum+1)+ c(N.total + ind, 2*N.total + i)] = c(ind, N.total+i + (k-1)*(nostratum+1))
         values[(k-1)*(2*N.total+nostratum+1)+c(N.total + ind, 2*N.total + i)] = c(-sqrt(kappa[k])*Q[ind,k], 1)
@@ -170,7 +189,7 @@ multipleComparisonsRoot = function(Gamma,index, Q, Z, alpha = 0.05, alternative 
     {
       for(i in 1:nostratum)
       {
-        ind = which(index==i)    
+        ind = which(matchedSetAssignments==i)    
         row.ind[(k-1)*(2*N.total+nostratum+1)+ c(N.total + ind, 2*N.total + i)] = rep((k-1)*(nostratum+1) + nostratum+i, length(ind)+1)
         col.ind[(k-1)*(2*N.total+nostratum+1)+ c(N.total + ind, 2*N.total + i)] = c(ind, N.total+i + (k-1)*(nostratum+1))
         values[(k-1)*(2*N.total+nostratum+1)+c(N.total + ind, 2*N.total + i)] = c(-sqrt(kappa[k])*Q[ind,k], 1)
@@ -242,7 +261,7 @@ multipleComparisonsRoot = function(Gamma,index, Q, Z, alpha = 0.05, alternative 
     rr = rrnext
     for(i in 1:nostratum)
     {
-      ind = which(index == i)
+      ind = which(matchedSetAssignments == i)
       for(j in ind)
       {
         row.ind[c(mm, mm+1)] = rep(rr, 2)
@@ -307,15 +326,36 @@ multipleComparisonsRoot = function(Gamma,index, Q, Z, alpha = 0.05, alternative 
 #########
 #Same function, just returns the Gamma vector along with whether or not the rejection has been made rather than the objective value
 ###########
-multipleComparisons = function(index, Q, Z, alpha = 0.05, alternative = "TS", Gamma=1)
+
+#' Multiple Comparisons in Sensitivity Analysis
+#' 
+#' Multivariate sensitivity analysis via quadratically constrained linear programming.  Based upon the paper: Fogarty, C. and Small, D. (2016). Sensitivity Analysis for Multiple Comparisons in Matched Observational Studies through Quadratically Constrained Linear Programming. Journal of the American Statistical Association: Theory and Methods,111 (516), 1820-1830 
+#' 
+#' @param Q the data matrix (each row is one individual, each column is one outcome)
+#' @param matchedSetAssignments the vector where the t^th element is the is the number of the matched set for the t^th individual
+#' @param Gamma the sensitivity parameter
+#' @param Z the treatment indicator
+#' @param alpha the significance level
+#' @param alternative a vector of directions for the K elementary alternative hypotheses
+#' @param critval the critical value to use
+#' 
+#' @return Gamma: sensitivity parameter
+#' @return Reject indicator of rejection (1 if rejection, 0 otherwise)
+#' @return rho: rho version of unmeasured confounders
+#' @return u: u version of unmeasured confounders
+#' 
+#' @export
+
+
+multipleComparisons = function(matchedSetAssignments, Q, Z, alpha = 0.05, alternative = "TS", Gamma=1)
 {
   
   Z = 1*Z
   
-  ns = table(index)
-  ms = table(index[Z==1])
+  ns = table(matchedSetAssignments)
+  ms = table(matchedSetAssignments[Z==1])
   
-  nostratum = length(unique(index))
+  nostratum = length(unique(matchedSetAssignments))
   
   
   
@@ -336,7 +376,7 @@ multipleComparisons = function(index, Q, Z, alpha = 0.05, alternative = "TS", Ga
   {
     if(ms[i] > 1)
     {
-      ind = which(index==i)
+      ind = which(matchedSetAssignments==i)
       Z[ind] = 1-Z[ind]
       for(k in 1:K)
       {
@@ -395,10 +435,10 @@ multipleComparisons = function(index, Q, Z, alpha = 0.05, alternative = "TS", Ga
   SDS = matrix(sds, nrow(PO), ncol(PO), byrow = T)*sqrt(nrow(PO))
   Qmat= (PO/SDS)
   
-  ns = table(index)
+  ns = table(matchedSetAssignments)
   ns.types = (ns-1)
   N.total = nrow(Qmat)
-  NS = matrix(ns[index], N.total, K)
+  NS = matrix(ns[matchedSetAssignments], N.total, K)
   nullexpec = colSums(Qmat/NS)
   
   
@@ -423,7 +463,7 @@ multipleComparisons = function(index, Q, Z, alpha = 0.05, alternative = "TS", Ga
   nvariables = K*(nostratum+1)+N.total+nostratum+(K-nTS)+1
   for(i in 1:nostratum)
   {
-    ind = which(index==i)
+    ind = which(matchedSetAssignments==i)
     row.ind[ind] = rep(i, length(ind))
     col.ind[ind] = ind
     values[ind] = 1
@@ -438,7 +478,7 @@ multipleComparisons = function(index, Q, Z, alpha = 0.05, alternative = "TS", Ga
     {
       for(i in 1:nostratum)
       {
-        ind = which(index==i)  	
+        ind = which(matchedSetAssignments==i)  	
         row.ind[(k-1)*(2*N.total+nostratum+1)+ c(N.total + ind, 2*N.total + i)] = rep((k-1)*(nostratum+1) + nostratum+i, length(ind)+1)
         col.ind[(k-1)*(2*N.total+nostratum+1)+ c(N.total + ind, 2*N.total + i)] = c(ind, N.total+i + (k-1)*(nostratum+1))
         values[(k-1)*(2*N.total+nostratum+1)+c(N.total + ind, 2*N.total + i)] = c(-sqrt(kappa[k])*Q[ind,k], 1)
@@ -469,7 +509,7 @@ multipleComparisons = function(index, Q, Z, alpha = 0.05, alternative = "TS", Ga
     {
       for(i in 1:nostratum)
       {
-        ind = which(index==i)    
+        ind = which(matchedSetAssignments==i)    
         row.ind[(k-1)*(2*N.total+nostratum+1)+ c(N.total + ind, 2*N.total + i)] = rep((k-1)*(nostratum+1) + nostratum+i, length(ind)+1)
         col.ind[(k-1)*(2*N.total+nostratum+1)+ c(N.total + ind, 2*N.total + i)] = c(ind, N.total+i + (k-1)*(nostratum+1))
         values[(k-1)*(2*N.total+nostratum+1)+c(N.total + ind, 2*N.total + i)] = c(-sqrt(kappa[k])*Q[ind,k], 1)
@@ -541,7 +581,7 @@ multipleComparisons = function(index, Q, Z, alpha = 0.05, alternative = "TS", Ga
     rr = rrnext
     for(i in 1:nostratum)
     {
-      ind = which(index == i)
+      ind = which(matchedSetAssignments == i)
       for(j in ind)
       {
         row.ind[c(mm, mm+1)] = rep(rr, 2)
@@ -582,7 +622,7 @@ multipleComparisons = function(index, Q, Z, alpha = 0.05, alternative = "TS", Ga
     varrho = solm$x[1:N.total]
     RHO[,ee] = varrho
     sums = solm$x[(length(solm$x)-nostratum+1):(length(solm$x))]
-    sumsstretch = sums[index]
+    sumsstretch = sums[matchedSetAssignments]
     uvec = log(varrho/sumsstretch)/log(Gamma.sens)
     U[,ee] = round(uvec, 4)
     Reject[ee] = (solm$objval > 0)
@@ -596,22 +636,43 @@ multipleComparisons = function(index, Q, Z, alpha = 0.05, alternative = "TS", Ga
 #A function for getting worst case pvalues from the sensitivty analysis for a single outcome (used in the simulation study for the Holm-Bonferroni method)
 ################ 
 
-sensitivity = function(index, q, Z, alpha = .05, alternative = "two.sided", Gamma.vec=1, calculate.pval = T, continuous.relax = F)
+#' Worst case p-values for single outcomes
+#' 
+#' A function for getting worst case pvalues from the sensitivty analysis for a single outcome (used in the simulation study for the Holm-Bonferroni method)
+#' 
+#' @param q the single outcome data
+#' @param matchedSetAssignments the vector where the t^th element is the is the number of the matched set for the t^th individual
+#' @param Gamma.vec the vector of sensitivity parameters to test over
+#' @param Z the treatment indicator
+#' @param alpha the significance level
+#' @param alternative a vector of directions for the K elementary alternative hypotheses
+#' @param calculate.pval toggles calculation of the p-value (TRUE or FALSE)
+#' @param continuous.relax toggles continuous relaxation (TRUE or FALSE)
+#' 
+#' @return Gamma.vec: the vector of sensitivity parameters to test over
+#' @return pval: the vector of p-values
+#' @return Tobs: observed test statistic 
+#' @return null.expec: expectation of test statistic under null distribution
+#' @return Deviate: deviate of observed statistic vs. expectation under null
+#' 
+#' @export
+
+sensitivity = function(matchedSetAssignments, q, Z, alpha = .05, alternative = "two.sided", Gamma.vec=1, calculate.pval = T, continuous.relax = F)
 {
   PVAL = calculate.pval
   sdq = sd(q)
   q = q/sd(q)
   Z = 1*Z
-  ns = table(index)
-  ms = table(index[Z==1])
+  ns = table(matchedSetAssignments)
+  ms = table(matchedSetAssignments[Z==1])
   ns.types = (ns-1)
   N.total = length(q)
   pval = 0
-  nostratum = length(unique(index))
+  nostratum = length(unique(matchedSetAssignments))
   
   for(i in 1:nostratum)
   {
-    ind = which(index==i)
+    ind = which(matchedSetAssignments==i)
     if(ms[i] > 1)
     {
       qsum = sum(q[ind])
@@ -625,11 +686,11 @@ sensitivity = function(index, q, Z, alpha = .05, alternative = "two.sided", Gamm
   treatment = Z
   
   N.vars = sum((ns-1))
-  index = index
-  null.expec = sum(q/ns[index])
+  matchedSetAssignments = matchedSetAssignments
+  null.expec = sum(q/ns[matchedSetAssignments])
   Tobs = sum(treatment*q)
   max.e = (sum(treatment*q) > null.expec)
-  index.symm = rep(1:nostratum,ns.types)
+  matchedSetAssignments.symm = rep(1:nostratum,ns.types)
   
   PM = rep(0, N.vars)
   PV = rep(0, N.vars)
@@ -639,9 +700,9 @@ sensitivity = function(index, q, Z, alpha = .05, alternative = "two.sided", Gamm
   b = rep(0, nostratum+1)
   for(kk in 1:nostratum)
   {
-    row.ind[which(index.symm==kk)] = rep(kk, (ns.types[kk]))
-    col.ind[which(index.symm==kk)] = which(index.symm==kk)  
-    values[which(index.symm==kk)] = rep(1, ns.types[kk])
+    row.ind[which(matchedSetAssignments.symm==kk)] = rep(kk, (ns.types[kk]))
+    col.ind[which(matchedSetAssignments.symm==kk)] = which(matchedSetAssignments.symm==kk)  
+    values[which(matchedSetAssignments.symm==kk)] = rep(1, ns.types[kk])
     b[kk] = 1
   }
   row.ind[(N.vars+1):(2*N.vars+1)] = rep(nostratum + 1, N.vars+1)
@@ -659,7 +720,7 @@ sensitivity = function(index, q, Z, alpha = .05, alternative = "two.sided", Gamm
     
     for(kk in 1:nostratum)
     {
-      ind = which(index==kk)
+      ind = which(matchedSetAssignments==kk)
       i=kk
       Q = q[ind]
       
@@ -681,8 +742,8 @@ sensitivity = function(index, q, Z, alpha = .05, alternative = "two.sided", Gamm
       }
       mu[abs(mu) < 1e-8] = 0
       sigma2[sigma2 < 1e-8] = 0
-      PM[index.symm == kk] = mu*(max.e) - mu*(!max.e)
-      PV[index.symm == kk] = (sigma2)
+      PM[matchedSetAssignments.symm == kk] = mu*(max.e) - mu*(!max.e)
+      PV[matchedSetAssignments.symm == kk] = (sigma2)
       
       
     }
@@ -701,7 +762,7 @@ sensitivity = function(index, q, Z, alpha = .05, alternative = "two.sided", Gamm
     model = list()
     if(Gamma.sens==1)
     {
-      V.test = sum(tapply(PV, index.symm, mean))  
+      V.test = sum(tapply(PV, matchedSetAssignments.symm, mean))  
       
       tstat = ((Tobs- null.expec)/sqrt(V.test))
       zed = tstat
@@ -893,6 +954,7 @@ smahal=
     for (i in 1:m) out[i,]<-mahalanobis(Xc,Xt[i,],icov,inverted=T)
     out
   }
+
 exact.match=function(dmat,z,exact){
   penalty = max(dmat)*100
   adif=abs(outer(exact[z==1],exact[z==0],"-"))
@@ -924,22 +986,22 @@ addcaliper=function(dmat,z,logitp,calipersd=.2,penalty=1000){
 #################################
 #Standardized Differences for Full Matching
 #################################
-standardized.diff.func=function(x,treatment,stratum.myindex,missing=rep(0,length(x))){
+standardized.diff.func=function(x,treatment,stratum.mymatchedSetAssignments,missing=rep(0,length(x))){
   xtreated=x[treatment==1 & missing==0];
   xcontrol=x[treatment==0 & missing==0];
   var.xtreated=var(xtreated);
   var.xcontrol=var(xcontrol);
   combinedsd=sqrt(.5*(var.xtreated+var.xcontrol));
   std.diff.before.matching=(mean(xtreated)-mean(xcontrol))/combinedsd;
-  nostratum=length(unique(stratum.myindex))-1*min(stratum.myindex==0);
+  nostratum=length(unique(stratum.mymatchedSetAssignments))-1*min(stratum.mymatchedSetAssignments==0);
   diff.in.stratum=rep(0,nostratum);
   treated.in.stratum=rep(0,nostratum);
   stratum.size=rep(0,nostratum);
   for(i in 1:nostratum){
-    diff.in.stratum[i]=mean(x[stratum.myindex==i & treatment==1 & missing==0])-mean(x[stratum.myindex==i & treatment==0 & missing==0]);
-    stratum.size[i] = sum(stratum.myindex==i & missing == 0)
-    treated.in.stratum[i]=sum(stratum.myindex==i & treatment==1 & missing==0);
-    if(sum(stratum.myindex==i & treatment==0 & missing==0)==0 || sum(stratum.myindex==i & treatment==1 & missing==0)==0){
+    diff.in.stratum[i]=mean(x[stratum.mymatchedSetAssignments==i & treatment==1 & missing==0])-mean(x[stratum.mymatchedSetAssignments==i & treatment==0 & missing==0]);
+    stratum.size[i] = sum(stratum.mymatchedSetAssignments==i & missing == 0)
+    treated.in.stratum[i]=sum(stratum.mymatchedSetAssignments==i & treatment==1 & missing==0);
+    if(sum(stratum.mymatchedSetAssignments==i & treatment==0 & missing==0)==0 || sum(stratum.mymatchedSetAssignments==i & treatment==1 & missing==0)==0){
       treated.in.stratum[i]=0;
       diff.in.stratum[i]=0;
     }
@@ -1048,15 +1110,15 @@ plotBalancesign <- function(stdDiff.Before,stdDiff.After,covName,covGroup,titleO
 ########################################
 #UnivariateRoot
 ########################################
-univariateRoot = function(Gamma,index, Q, Z, kappa=qnorm(1-alpha/2)^2, alternative = "G")
+univariateRoot = function(Gamma,matchedSetAssignments, Q, Z, kappa=qnorm(1-alpha/2)^2, alternative = "G")
 {
   
   Z = 1*Z
   
-  ns = table(index)
-  ms = table(index[Z==1])
+  ns = table(matchedSetAssignments)
+  ms = table(matchedSetAssignments[Z==1])
   
-  nostratum = length(unique(index))
+  nostratum = length(unique(matchedSetAssignments))
   
   
   
@@ -1077,7 +1139,7 @@ univariateRoot = function(Gamma,index, Q, Z, kappa=qnorm(1-alpha/2)^2, alternati
   {
     if(ms[i] > 1)
     {
-      ind = which(index==i)
+      ind = which(matchedSetAssignments==i)
       Z[ind] = 1-Z[ind]
       for(k in 1:K)
       {
@@ -1136,10 +1198,10 @@ univariateRoot = function(Gamma,index, Q, Z, kappa=qnorm(1-alpha/2)^2, alternati
   SDS = matrix(sds, nrow(PO), ncol(PO), byrow = T)
   Qmat= (PO/SDS)
   
-  ns = table(index)
+  ns = table(matchedSetAssignments)
   ns.types = (ns-1)
   N.total = nrow(Qmat)
-  NS = matrix(ns[index], N.total, K)
+  NS = matrix(ns[matchedSetAssignments], N.total, K)
   nullexpec = colSums(Qmat/NS)
   
   
@@ -1163,7 +1225,7 @@ univariateRoot = function(Gamma,index, Q, Z, kappa=qnorm(1-alpha/2)^2, alternati
   nvariables = K*(nostratum+1)+N.total+nostratum+(K-nTS)+1
   for(i in 1:nostratum)
   {
-    ind = which(index==i)
+    ind = which(matchedSetAssignments==i)
     row.ind[ind] = rep(i, length(ind))
     col.ind[ind] = ind
     values[ind] = 1
@@ -1178,7 +1240,7 @@ univariateRoot = function(Gamma,index, Q, Z, kappa=qnorm(1-alpha/2)^2, alternati
     {
       for(i in 1:nostratum)
       {
-        ind = which(index==i)  	
+        ind = which(matchedSetAssignments==i)  	
         row.ind[(k-1)*(2*N.total+nostratum+1)+ c(N.total + ind, 2*N.total + i)] = rep((k-1)*(nostratum+1) + nostratum+i, length(ind)+1)
         col.ind[(k-1)*(2*N.total+nostratum+1)+ c(N.total + ind, 2*N.total + i)] = c(ind, N.total+i + (k-1)*(nostratum+1))
         values[(k-1)*(2*N.total+nostratum+1)+c(N.total + ind, 2*N.total + i)] = c(-sqrt(kappa[k])*Q[ind,k], 1)
@@ -1209,7 +1271,7 @@ univariateRoot = function(Gamma,index, Q, Z, kappa=qnorm(1-alpha/2)^2, alternati
     {
       for(i in 1:nostratum)
       {
-        ind = which(index==i)    
+        ind = which(matchedSetAssignments==i)    
         row.ind[(k-1)*(2*N.total+nostratum+1)+ c(N.total + ind, 2*N.total + i)] = rep((k-1)*(nostratum+1) + nostratum+i, length(ind)+1)
         col.ind[(k-1)*(2*N.total+nostratum+1)+ c(N.total + ind, 2*N.total + i)] = c(ind, N.total+i + (k-1)*(nostratum+1))
         values[(k-1)*(2*N.total+nostratum+1)+c(N.total + ind, 2*N.total + i)] = c(-sqrt(kappa[k])*Q[ind,k], 1)
@@ -1281,7 +1343,7 @@ univariateRoot = function(Gamma,index, Q, Z, kappa=qnorm(1-alpha/2)^2, alternati
     rr = rrnext
     for(i in 1:nostratum)
     {
-      ind = which(index == i)
+      ind = which(matchedSetAssignments == i)
       for(j in ind)
       {
         row.ind[c(mm, mm+1)] = rep(rr, 2)
@@ -1340,14 +1402,14 @@ univariateRoot = function(Gamma,index, Q, Z, kappa=qnorm(1-alpha/2)^2, alternati
 ########################################
 #initialPoint
 ########################################
-initialPoint = function(index, Q, Z, alpha = 0.05, alternative = "TS", Gamma=1)
+initialPoint = function(matchedSetAssignments, Q, Z, alpha = 0.05, alternative = "TS", Gamma=1)
 {
   Z = 1*Z
   
-  ns = table(index)
-  ms = table(index[Z==1])
+  ns = table(matchedSetAssignments)
+  ms = table(matchedSetAssignments[Z==1])
   
-  nostratum = length(unique(index))
+  nostratum = length(unique(matchedSetAssignments))
   
   
   
@@ -1368,7 +1430,7 @@ initialPoint = function(index, Q, Z, alpha = 0.05, alternative = "TS", Gamma=1)
   {
     if(ms[i] > 1)
     {
-      ind = which(index==i)
+      ind = which(matchedSetAssignments==i)
       Z[ind] = 1-Z[ind]
       for(k in 1:K)
       {
@@ -1417,10 +1479,10 @@ initialPoint = function(index, Q, Z, alpha = 0.05, alternative = "TS", Gamma=1)
   SDS = matrix(sds, nrow(PO), ncol(PO), byrow = T)
   Qmat= (PO/SDS)
   
-  ns = table(index)
+  ns = table(matchedSetAssignments)
   ns.types = (ns-1)
   N.total = nrow(Qmat)
-  NS = matrix(ns[index], N.total, K)
+  NS = matrix(ns[matchedSetAssignments], N.total, K)
   nullexpec = colSums(Qmat/NS)
   
   
@@ -1437,7 +1499,7 @@ initialPoint = function(index, Q, Z, alpha = 0.05, alternative = "TS", Gamma=1)
   b = rep(0, nostratum+2*N.total)
   for(i in 1:nostratum)
   {
-    ind = which(index==i)
+    ind = which(matchedSetAssignments==i)
     row.ind[ind] = rep(i, length(ind))
     col.ind[ind] = ind
     values[ind] = 1
@@ -1459,7 +1521,7 @@ initialPoint = function(index, Q, Z, alpha = 0.05, alternative = "TS", Gamma=1)
     rr = rrnext
     for(i in 1:nostratum)
     {
-      ind = which(index == i)
+      ind = which(matchedSetAssignments == i)
       for(j in ind)
       {
         row.ind[c(mm, mm+1)] = rep(rr, 2)
@@ -1491,7 +1553,7 @@ initialPoint = function(index, Q, Z, alpha = 0.05, alternative = "TS", Gamma=1)
     RHO[,ee] = varrho
     sums = solm$x[(length(solm$x)-nostratum+1):(length(solm$x))]
     S[,ee] = sums
-    sumsstretch = sums[index]
+    sumsstretch = sums[matchedSetAssignments]
     uvec = log(varrho/sumsstretch)/log(Gamma.sens)
     U[,ee] = round(uvec, 4)
     Reject[ee] = (solm$objval > 0)

@@ -13,7 +13,7 @@
 #' @param Gamma the sensitivity parameter
 #' @param alpha the significance level of the test
 #' 
-#' @return crit the most conservative feasible 1-alpha ChibarSq. critical value
+#' @return crit: the most conservative feasible 1-alpha ChibarSq. critical value
 #' 
 #' @export
 

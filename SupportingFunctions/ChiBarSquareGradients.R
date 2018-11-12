@@ -15,7 +15,7 @@
 #' @param alpha the significance level
 #' @param qtemp the temporary quantile
 #' 
-#' @return ret the gradient
+#' @return ret: the gradient
 #' 
 #' @export
 
@@ -54,7 +54,7 @@ chibarcritoptGradient = function(co, alpha, qtemp)
 #' @param q the quantile
 #' @param lower.tail which tail of the distribution (defaults to TRUE)
 #' 
-#' @return grad the gradient
+#' @return grad: the gradient
 #' 
 #' @export
 
@@ -81,7 +81,7 @@ pchibarsqGradient = function(q, V, lower.tail = TRUE)
 #' @param i which weight
 #' @param k the total number of weights
 #' 
-#' @return grad the gradient
+#' @return grad: the gradient
 #' 
 #' @export
 iThGradient = function(i, k, V)
@@ -125,7 +125,7 @@ iThGradient = function(i, k, V)
 #' @param k the total number of weights
 #' @param M the fixed subset of {1, ..., k}
 #' 
-#' @return grad the gradient
+#' @return grad: the gradient
 #' 
 #' @export
 iThGradient_GivenM = function(i, k, V, M)

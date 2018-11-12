@@ -22,7 +22,10 @@
 #' @param TS the univariate test statistics
 #' @param index the indexing of the units in the experiment
 #' 
-#' @return lambda: an optimal weighting and optval: the objective function
+#' @return lambda: an optimal weighting 
+#' @return  optval: the objective function
+#' 
+#' @export
 
 
 innerSolve <- function(rho, Q, TS, index){

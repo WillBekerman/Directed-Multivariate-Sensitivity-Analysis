@@ -17,6 +17,8 @@
 #' @param Gamma the sensitivity parameter
 #' 
 #' @return the maximal correlation
+#' 
+#' @export
  
 maxCorPair = function(Q, index, Gamma)
 {

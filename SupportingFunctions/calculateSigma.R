@@ -6,7 +6,7 @@
 #' @param rho the fixed set of unmeasured confounders
 #' @param index an alternative form of indexing useful for computation.  The t^th element is the list of all individuals in the t^th matched set
 #' 
-#' @return Sigma the covariance matrix
+#' @return Sigma: the covariance matrix
 #' 
 #' @export
 

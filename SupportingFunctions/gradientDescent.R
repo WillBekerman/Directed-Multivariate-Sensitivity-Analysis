@@ -12,6 +12,32 @@
 #     betam: momentum term for gradient update
 ################################################################################
 
+#' Projected subgradient descent
+#' 
+#' Performs subgradient descent to locate optimal outcome weightings (lambdas) and finds a worst-case configuration of unmeasured confounders (rho).
+#' 
+#' @param Q the data matrix
+#' @param TS the univariate test statistics
+#' @param index the indexing of the units in the experiment
+#' @param Gamma the sensitivity parameter
+#' @param rho0 the initial feasible rho
+#' @param s0 the initial feasible s
+#' @param step the step-size in the subgradient descent (defaults to 100)
+#' @param maxIter the maximum number of iterations of subgradient descent (defaults to 1000)
+#' @param betam momentum term for gradient update
+#' @param alpha the significance level
+#' @param Z treatment indicator
+#' 
+#' @return fval: the optimal objective value
+#' @return rho: the rho configuration corresponding to the optimal objective value
+#' @return s: the s configuration corresponding to the optimal objective value
+#' @return lambdas: the outcome weights corresponding to the optimal objective value
+#' @return reject: indicator of rejection of the null (1 if reject, 0 otherwise)
+#' @return critval: the critical value used
+#' 
+#' @export
+
+
 gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step,
                                         maxIter, betam, alpha, Z){
   I <- length(index) #number of strata

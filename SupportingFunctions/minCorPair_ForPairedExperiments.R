@@ -17,6 +17,7 @@
 #' @param Gamma the sensitivity parameter
 #' 
 #' @return the minimal correlation
+#' @export
 
 minCorPair = function(Q, index, Gamma)
 {

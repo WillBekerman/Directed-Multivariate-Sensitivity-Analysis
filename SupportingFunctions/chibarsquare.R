@@ -11,7 +11,7 @@
 #' @param lower.tail which tail of the distribution (defaults to TRUE)
 #' @param log.p return probabilities on log scale (defaults to FALSE)
 #' 
-#' @return ans the probability
+#' @return ans: the probability
 #' 
 #' @export
 
