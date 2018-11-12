@@ -19,6 +19,8 @@
 #' @param outputDirName a string for the name of the directory to output the results to (defaults to ""Sensitivity_Analysis_Results")
 #' 
 #' @return LargestRejectGamma the largest Gamma such that the null hypothesis was rejected
+#' 
+#' @export
 
 chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator, 
                              numGamma = 10, alpha = .05, directions = "Greater",

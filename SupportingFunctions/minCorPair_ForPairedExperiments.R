@@ -8,6 +8,16 @@
 #index is an indexing set as elsewhere in this code, but must be pairs for this to output valid results
 #Gamma is the sensitivity parameter
 
+#' Computes minimal bivariate correlation
+#' 
+#' Computes the minimal correlation between two outcomes in a paired experiment
+#' 
+#' @param Q a subset of the original data matrix containing only two outcomes
+#' @param index the indexing of the units in the experiment
+#' @param Gamma the sensitivity parameter
+#' 
+#' @return the minimal correlation
+
 minCorPair = function(Q, index, Gamma)
 {
   K = 2

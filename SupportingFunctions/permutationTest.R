@@ -45,6 +45,23 @@ makeBlockIndices <- function(index)
 ################################################################################
 #                         Performs a permutation test
 ################################################################################
+
+#' Exact inference at Gamma = 1
+#' 
+#' Performs a permutation test based the method of Cohen, Olson, and Fogarty (2018) for Gamma = 1
+#' 
+#' @param Q the matrix of the q_{ijk}.  It has K rows (the number of outcomes) and N columns (the number of individuals)
+#' @param TS the vector of the univariate test statistics
+#' @param index an alternative form of indexing useful for computation.  The t^th element is the list of all individuals in the t^th matched set
+#' @param Z the treatment indicator
+#' @param alpha the significance level of the test (defaults to .05)
+#' @param subSampleSize the number of samples to take when performing the permutation test
+#' 
+#' @return reject: indicator of rejection and lambdas: an optimal weighting of the outcomes
+#' 
+#' @export
+
+
 permutationTest = function(Q, TS, index, alpha = alpha, Z=Z, subSampleSize = 500)
 {
   populationSize = dim(Q)[2] #the number of individuals in the population (N in standard notation)

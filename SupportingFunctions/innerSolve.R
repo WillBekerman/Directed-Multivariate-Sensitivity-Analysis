@@ -11,6 +11,20 @@
 # RETURNS:
 #       lambda: optimal solution
 #       fobj: optimal value
+
+
+#' Solves inner optimization during subgradient descent
+#' 
+#' Uses dual method of Shapiro (2003) to solve the inner optimization for fixed rho
+#' 
+#' @param rho configuration of unmeasured confounders
+#' @param Q the data matrix
+#' @param TS the univariate test statistics
+#' @param index the indexing of the units in the experiment
+#' 
+#' @return lambda: an optimal weighting and optval: the objective function
+
+
 innerSolve <- function(rho, Q, TS, index){
   EPS <- 1e-6
   V <- calculateSigma(rho, Q, index)

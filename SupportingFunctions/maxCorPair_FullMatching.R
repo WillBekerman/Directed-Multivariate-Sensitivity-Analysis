@@ -11,6 +11,18 @@
 #Note: this performs the same task as maxCorPair_ForPairedExperiments.R but for general full-matchings
 #       Since it is designed to run on general full-matchings, it runs slower than maxCorPair_ForPairedExperiments.R when #       run on pairs (there is less problem-specific structure to exploit).
 #Note: the vector expyu is the vector with the (i,j)^th coordinate corresponding to exp(\gamma*u_{ij}).
+
+#' Computes maximal bivariate correlation
+#' 
+#' Computes the maximal correlation between two outcomes in a fully matched experiment
+#' 
+#' @param Q a subset of the original data matrix containing only two outcomes
+#' @param index the indexing of the units in the experiment
+#' @param Gamma the sensitivity parameter
+#' 
+#' @return the maximal correlation
+
+
 maxCorFullMatching = function(Q, index, Gamma)
 {
 

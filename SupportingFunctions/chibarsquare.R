@@ -2,6 +2,19 @@
 #       Cumulative Distribution Function for Chi-Bar-Squared distribution
 ################################################################################
 
+#' CDF of Chi-Bar-Sq. Distribution
+#' 
+#' Computes tail probabilities under specified Chi-bar-sq. distributions
+#' 
+#' @param q the quantile
+#' @param V the covariance matrix
+#' @param lower.tail which tail of the distribution (defaults to TRUE)
+#' @param log.p return probabilities on log scale (defaults to FALSE)
+#' 
+#' @return ans the probability
+#' 
+#' @export
+
 pchibarsq=function(q, V, lower.tail=TRUE, log.p=FALSE)
 {
   n<-nrow(V)
@@ -23,6 +36,17 @@ pchibarsq=function(q, V, lower.tail=TRUE, log.p=FALSE)
 #       Weights Function for Chi-Bar-Squared distribution
 ################################################################################
 
+#' Weights of Chi-Bar-Sq. Distribution
+#' 
+#' Computes Chi-Sq. weights for a given Chi-bar-sq. distribution
+#' 
+#' @param V the covariance matrix
+#' 
+#' @return ans the vector of weights
+#' 
+#' @export
+
+
 wchibarsq=function(V) ## weights
 {## Ref: Kudo A. 1963. Biometrika, 50, pg 403  (page 414)
   stopifnot(is.matrix(V) && diff(dim(V))==0L && nrow(V)>0L)
@@ -43,11 +67,23 @@ wchibarsq=function(V) ## weights
 ################################################################################
 #       Quantile Function for Chi-Bar-Squared distribution
 ################################################################################
+
+#' Quantiles of Chi-Bar-Sq. Distribution
+#' 
+#' Computes quantiles under specified Chi-bar-sq. distributions
+#' 
+#' @param p the probability
+#' @param V the covariance matrix
+#' 
+#' @return ans the quantile
+#' 
+#' @export
 qchibarsq =function(p, V)
 {
   K = ncol(V)
   pchiroot = function(q, V){pchibarsq(q, V) - p}
-  uniroot(pchiroot, c(0, qchisq(p, K)), V=V)$root
   
+  ans = uniroot(pchiroot, c(0, qchisq(p, K)), V=V)$root
+  return (ans)
 }
 

@@ -13,6 +13,18 @@
 #Note: the vector expyu is the vector with the (i,j)^th coordinate corresponding to exp(\gamma*u_{ij}).
 
 #See maxCorPair_FullMatching.R for line-by-line comments
+
+#' Computes maximal bivariate correlation
+#' 
+#' Computes the maximal correlation between two outcomes in a fully matched experiment
+#' 
+#' @param Q a subset of the original data matrix containing only two outcomes
+#' @param index the indexing of the units in the experiment
+#' @param Gamma the sensitivity parameter
+#' 
+#' @return the maximal correlation
+
+
 minCorFullMatching = function(Q, index, Gamma)
 {
   epsilon = 1e-5

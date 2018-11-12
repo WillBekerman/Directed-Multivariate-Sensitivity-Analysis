@@ -1,3 +1,14 @@
+#' Initial Point
+#' 
+#' Finds an initial feasible point in the constraint set
+#' 
+#' @param index the indexing of the units in the experiment
+#' @param Gamma the sensitivity parameter
+#' 
+#' @return a feasible rho and s pair
+#' 
+#' @export
+
 getInitialPoint <- function(index, Gamma){
   # Find an initial feasible point in the constraint set
   

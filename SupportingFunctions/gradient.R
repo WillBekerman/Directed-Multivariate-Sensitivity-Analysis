@@ -1,16 +1,30 @@
-gradient <- function(rho, lambda, Q, T, index){
+#' Subgradient computation
+#' 
+#' Calculates a subgradient of the optimization with respect to fixed lambdas
+#' 
+#' @param rho the current rho
+#' @param lambda the current fixed lambdas
+#' @param Q the data matrix
+#' @param TS the univariate test statistics
+#' @param index the indexing of the units in the experiment
+#' 
+#' @return the objective value and the gradient
+#' 
+#' @export
+
+gradient <- function(rho, lambda, Q, TS, index){
   # Returns objective value and gradient of one-sided objective (given
   # optimal lambda!)
   # 
-  # max_{lambda >= 0} (lambda'*(T-mu(rho))^2/lambda'*Sigma(rho)*lambda
+  # max_{lambda >= 0} (lambda'*(TS-mu(rho))^2/lambda'*Sigma(rho)*lambda
   #
   # ARGS:
   #     rho:
   #     lambda:
   #     Q:
-  #     T:
+  #     TS:
   #     index: list whose ith element contains vector of ith strata locations
-  # OUTPUT:
+  # OUTPUTS:
   #       obj: objective value
   #       grad: [gradf; zeros(length(s),1]
   
@@ -21,8 +35,8 @@ gradient <- function(rho, lambda, Q, T, index){
   # denominator, so f = h/g, df = (gdh - hdg)/g^2
   alpha <- t(Q)%*%lambda
   g <- 0
-  h <- (sum(lambda*T) - sum(alpha*rho))^2
-  dh <- -2*alpha*(sum(lambda*T) - sum(alpha*rho))
+  h <- (sum(lambda*TS) - sum(alpha*rho))^2
+  dh <- -2*alpha*(sum(lambda*TS) - sum(alpha*rho))
   dg <- numeric(N)
   
   for(i in 1:I){

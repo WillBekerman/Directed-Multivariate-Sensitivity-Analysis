@@ -3,6 +3,21 @@
 #       a given Gamma for the specified Q and index.
 ################################################################################
 #index is given in the form of the matched set indexing
+
+#' Maximal Chi-Bar-Sq. critical value
+#' 
+#' Computes the most conservative 1-alpha ChibarSq. critical value at a given Gamma for the specified Q and index. 
+#' 
+#' @param Q the matrix of the q_{ijk}.  It has K rows (the number of outcomes) and N columns (the number of individuals)
+#' @param index an alternative form of indexing useful for computation.  The t^th element is the list of all individuals in the t^th matched set
+#' @param Gamma the sensitivity parameter
+#' @param alpha the significance level of the test
+#' 
+#' @return crit the most conservative feasible 1-alpha ChibarSq. critical value
+#' 
+#' @export
+
+
 maxCritChiBarUB = function(Q, index, Gamma, alpha)
 {
   K= ncol(Q)

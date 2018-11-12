@@ -7,6 +7,18 @@
   # k: the number of 'degrees of freedom' of the Chi-bar-squared distribution
   # Correlation: the correlation structure (V in the notation of Sen and Silvapulle)
 
+#' Gradients for Chi-bar-sq critical value optimization
+#' 
+#' Computes gradients of the chi-bar-sq. tail probability with respect to the elements of the correlation matrix
+#' 
+#' @param co a vector of the lower triangular entries of the correlation matrix
+#' @param alpha the significance level
+#' @param qtemp the temporary quantile
+#' 
+#' @return ret the gradient
+#' 
+#' @export
+
 chibarcritoptGradient = function(co, alpha, qtemp)
 {
   K = .5*sqrt(8*length(co) + 1) + .5
@@ -33,6 +45,19 @@ chibarcritoptGradient = function(co, alpha, qtemp)
 
 # RETURNS:
   # 'grad' the gradient vector with respect to the correlations
+
+#' Gradients for Chi-bar-sq critical value optimization
+#' 
+#' Computes gradients of the chi-bar-sq. tail probability with respect to the elements of the correlation matrix
+#' 
+#' @param V the covariance matrix
+#' @param q the quantile
+#' @param lower.tail which tail of the distribution (defaults to TRUE)
+#' 
+#' @return grad the gradient
+#' 
+#' @export
+
 pchibarsqGradient = function(q, V, lower.tail = TRUE)
 {
   k = nrow(V)
@@ -48,7 +73,17 @@ pchibarsqGradient = function(q, V, lower.tail = TRUE)
   return(grad)
 }
 
-#Compute gradient of i^th weight w_{i}(k, V)
+#' Compute gradient of i^th weight w_{i}(k, V)
+#' 
+#' Computes gradients of the chi-bar-sq. weight for the i^th weight with respect to the correlation matrix entries
+#' 
+#' @param V the covariance matrix
+#' @param i which weight
+#' @param k the total number of weights
+#' 
+#' @return grad the gradient
+#' 
+#' @export
 iThGradient = function(i, k, V)
 {
   stopifnot(i >= 0 && i <= k) #safety check
@@ -81,7 +116,18 @@ iThGradient = function(i, k, V)
 }
 
 
-#computes the gradients of the term with a fixed given 'M' in the sum over all subsets {1, ..., k}
+#' Computes the gradients of the term with a fixed given 'M' in the sum over all subsets {1, ..., k}
+#' 
+#' Helps to compute gradients of the chi-bar-sq. weight for the i^th weight with respect to the correlation matrix entries
+#' 
+#' @param V the covariance matrix
+#' @param i which weight
+#' @param k the total number of weights
+#' @param M the fixed subset of {1, ..., k}
+#' 
+#' @return grad the gradient
+#' 
+#' @export
 iThGradient_GivenM = function(i, k, V, M)
 {
   N = setdiff(1:k, M) #N = {1, ..., k} \setminus M
@@ -94,6 +140,8 @@ iThGradient_GivenM = function(i, k, V, M)
     pmvnorm(lower = rep(0, k - i), sigma = LambdaN_inv)*gradientForLambda_MN(i, k, V, M)
   return(grad)
 }
+
+
 
 LambdaNTerm = function(i, k, V, M)
 {

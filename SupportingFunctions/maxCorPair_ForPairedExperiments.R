@@ -7,6 +7,17 @@
   #Q is a matrix with two outcomes
   #index is an indexing set as elsewhere in this code, but must be pairs for this to output valid results
   #Gamma is the sensitivity parameter
+
+#' Computes maximal bivariate correlation
+#' 
+#' Computes the maximal correlation between two outcomes in a paired experiment
+#' 
+#' @param Q a subset of the original data matrix containing only two outcomes
+#' @param index the indexing of the units in the experiment
+#' @param Gamma the sensitivity parameter
+#' 
+#' @return the maximal correlation
+ 
 maxCorPair = function(Q, index, Gamma)
 {
   K = 2
