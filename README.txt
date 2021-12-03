@@ -40,3 +40,5 @@ Subfolders:
     "generateData3.R" - generates trivariate data at Gamma = 1 for a multitude of different experimental configurations
     "makeExperimentalSetupFromYData.R" - takes output from "generateData3()" and encodes the data in the form required for "chiBarSquaredTest()"
     "psiFunctions.R" - two psi functions for data processing
+    
+The published paper is available from Biometrika at https://doi.org/10.1093/biomet/asaa024.
