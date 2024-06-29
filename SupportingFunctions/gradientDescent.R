@@ -39,7 +39,8 @@
 
 
 gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step,
-                                        maxIter, betam, alpha, Z){
+                                        maxIter, betam, alpha, Z,
+                                        lam=NULL){
   I <- length(index) #number of strata
   N <- dim(Q)[2] #population size
   rho <- rho0; #initial rho
@@ -79,21 +80,35 @@ gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step,
     matchedSetAssignments[unlist(index[ind])] = ind
   }
   
-  if(K != 1) #multivariate case (K > 1)
-  {
-    crit = maxCritChiBarUB(t(Q), matchedSetAssignments, Gamma, alpha)
+  
+  if (is.null(lam)){
+    if(K != 1) #multivariate case (K > 1)
+    {
+      crit = sqrt(maxCritChiBarUB(t(Q), matchedSetAssignments, Gamma, alpha))
+    }
+    if(K == 1) #univariate case (K = 1)
+    {
+      crit =  sqrt(qchisq(1-alpha, K))
+    }
   }
-  if(K == 1) #univariate case (K = 1)
-  {
-    crit =  qchisq(1-alpha, K)
+  else{
+    # if(K != 1) #multivariate case (K > 1)
+    # {
+    #   crit = sqrt(maxCritChiBarUB(t(Q), matchedSetAssignments, Gamma, alpha))
+    # }
+    # if(K == 1) #univariate case (K = 1)
+    # {
+    #   crit =  sqrt(qchisq(1-alpha, K))
+    # }
+    crit = qnorm(1-alpha)
   }
   
-  
-  while(iter <= maxIter){
+  if (is.null(lam)){
+    while(iter <= maxIter){
     # find lambdastar and objective value
-    outLambda <- innerSolve(rho, Q, TS, index)
+    outLambda <- innerSolve(rho, Q, TS, index, lam=NULL)
 
-    if(outLambda$optval < sqrt(crit)-1e-3)
+    if(outLambda$optval < crit-1e-3)
     {
       fBest = outLambda$optval 
       sBest <- s
@@ -105,10 +120,10 @@ gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step,
     {
       Lmat = matrix(outLambda$lambda, length(matchedSetAssignments), K, byrow=T)
       qlam = rowSums(Lmat*t(Q))
-      rr = univariateRoot(Gamma, matchedSetAssignments, qlam, Z, kappa = crit, alternative = "G")
+      rr = univariateRoot(Gamma, matchedSetAssignments, qlam, Z, kappa = crit^2, alternative = "G")
       if(rr > 0)
       {
-        fBest = 2*sqrt(crit)
+        fBest = 2*crit
         iter = maxIter + 1
       }
     }
@@ -142,8 +157,10 @@ gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step,
         }
         
         # iteration processing
-        if(iter %% 10 == 0 && showDiagnostics == TRUE)
+        if(iter %% 10 == 0 && showDiagnostics == TRUE){
+          #if(iter == 1000) { browser() }
           cat("Iteration: ", iter, "    Obj. Val:", fval[iter], "\n")
+        }
         iter <- iter + 1
         tt <- step/sqrt(iter)
       }else{
@@ -151,7 +168,74 @@ gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step,
       }
     }
   }
-  reject = (fBest > sqrt(crit))
+  }
+  else {
+    while(iter <= maxIter){
+      # find lambdastar and objective value
+      outLambda <- innerSolve(rho, Q, TS, index, lam=lam)
+      
+      if(outLambda$optval < crit-1e-3)
+      {
+        fBest = outLambda$optval 
+        sBest <- s
+        rhoBest <- rho
+        iter = maxIter + 1 #break out of the loop
+      }
+      
+      if(iter <= maxIter)
+      {
+        Lmat = matrix(outLambda$lambda, length(matchedSetAssignments), K, byrow=T)
+        qlam = rowSums(Lmat*t(Q))
+        rr = univariateRoot(Gamma, matchedSetAssignments, qlam, Z, kappa = crit^2, alternative = "G")
+        if(rr > 0)
+        {
+          fBest = 2*crit
+          iter = maxIter + 1
+        }
+      }
+      
+      if(iter <= maxIter)
+      {
+        fval[iter] <- outLambda$optval
+        
+        if(fval[iter] < fBest){
+          fBest <- fval[iter]
+          sBest <- s
+          rhoBest <- rho
+        }
+        
+        if(iter <= maxIter){
+          # find the gradient
+          outGrad <- gradient(rho, outLambda$lambda, Q, TS, index)
+          
+          # project gradient step
+          for(i in 1:I){
+            
+            ix <- index[[i]]
+            gstep <- c(rho[ix], s[i]) - (1-betam)*tt*c(outGrad$grad[ix], 0) +
+              betam*(c(rho[ix], s[i]) - c(rhoOld[ix],sOld[i]))
+            
+            outProject <- constraintProject(Gamma, gstep)
+            rhoOld[ix] <- rho[ix]
+            sOld[i] <- s[i]
+            rho[ix] <- outProject$x
+            s[i] <- outProject$s
+          }
+          # iteration processing
+          if(iter %% 10 == 0 && showDiagnostics == TRUE){
+            cat("Iteration: ", iter, "    Obj. Val:", fval[iter], "\n")
+          }
+          iter <- iter + 1
+          tt <- step/sqrt(iter)
+        }else{
+          iter = maxIter + 1#when we can't take gradients because we are at lambda = (0, 0)  we quit the loop
+        }
+      }
+    }
+  }
   
-  list(fval=fBest, rho=rhoBest, s=sBest, lambdas = outLambda$lambda, reject = reject, critval = sqrt(crit))
+  cat('fBest: ', fBest, '\n');  cat('crit: ', crit, '\n')
+  reject = (fBest > crit)
+  
+  list(fval=fBest, rho=rhoBest, s=sBest, lambdas = outLambda$lambda, reject = reject, critval = crit)
 }

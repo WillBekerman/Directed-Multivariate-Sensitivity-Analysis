@@ -3,7 +3,7 @@
 ################################################################################
 
 #computes the test statistic for the Chibarsq test specifically at Gamma = 1
-computeTestStatistic_Gamma1 = function(Q, TS, index, treatmentAllocation)
+computeTestStatistic_Gamma1 = function(Q, TS, index, treatmentAllocation, lam=NULL)
 {
   EPS <- 1e-6
 
@@ -19,12 +19,17 @@ computeTestStatistic_Gamma1 = function(Q, TS, index, treatmentAllocation)
   b <- (Q %*% treatmentAllocation) - (Q %*% rho) 
   K <- dim(V)[1]
   
-  #solve inner optimization problem
-  lambdaPos <- (solve.QP( Dmat = 2 * V,
-                          dvec = 2 * b,
-                          Amat = diag(1,K),
-                          bvec = rep(0,K),
-                          factorized = FALSE))$solution
+  if (is.null(lam)){
+    #solve inner optimization problem
+    lambdaPos <- (solve.QP( Dmat = 2 * V,
+                            dvec = 2 * b,
+                            Amat = diag(1,K),
+                            bvec = rep(0,K),
+                            factorized = FALSE))$solution
+  }
+  else{
+    lambdaPos=lam
+  }
   
   fpos <- sum(lambdaPos * b) / sqrt(as.vector(t(lambdaPos) %*% V %*% lambdaPos + EPS))
   
@@ -63,7 +68,7 @@ makeBlockIndices <- function(index)
 #' @export
 
 
-permutationTest = function(Q, TS, index, alpha = alpha, Z=Z, subSampleSize = 500)
+permutationTest = function(Q, TS, index, alpha = alpha, Z=Z, subSampleSize = 500, lam=NULL)
 {
   populationSize = dim(Q)[2] #the number of individuals in the population (N in standard notation)
 
@@ -71,7 +76,7 @@ permutationTest = function(Q, TS, index, alpha = alpha, Z=Z, subSampleSize = 500
   #                           Calculate the optimal lambdas 
   #                           and observed test statistic
   ################################################################################
-  observedTestStatistic = computeTestStatistic_Gamma1(Q, TS, index, Z)
+  observedTestStatistic = computeTestStatistic_Gamma1(Q, TS, index, Z, lam=lam)
   
   ################################################################################
   #                           Creates a collection of 
@@ -102,7 +107,7 @@ permutationTest = function(Q, TS, index, alpha = alpha, Z=Z, subSampleSize = 500
   #                           Computes the test statistic w.r.t. 
   #                           the newly randomized treatment allocations
   ################################################################################
-  randomizationOfTreatment = apply(randomizationMatrix, MARGIN = 2, FUN = function(val) computeTestStatistic_Gamma1(Q, TS, index, val))
+  randomizationOfTreatment = apply(randomizationMatrix, MARGIN = 2, FUN = function(val) computeTestStatistic_Gamma1(Q, TS, index, val, lam))
   
   ################################################################################
   #                           Compute p-values from the permutation test

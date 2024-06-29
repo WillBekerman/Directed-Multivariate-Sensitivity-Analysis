@@ -28,22 +28,23 @@
 #' @export
 
 
-innerSolve <- function(rho, Q, TS, index){
+innerSolve <- function(rho, Q, TS, index, lam=NULL){
   EPS <- 1e-6
   V <- calculateSigma(rho, Q, index)
   b <- (TS - Q %*% rho)
   K <- dim(V)[1]
   
-  # Solves quadratic program over non-negative orthant
-  lambdaVector <- solve.QP( Dmat = 2 * V,
-                               dvec = 2 * b,
-                               Amat = diag(1,K),
-                               bvec = rep(0,K))
-  
-  
-  lambdaPos = lambdaVector$solution #solution over non-negative orthant
-  UNconstrainedSoln = lambdaVector$unconstrained.solution #solution without any constraints
-
+  if (is.null(lam)){
+    # Solves quadratic program over non-negative orthant
+    lambdaVector <- solve.QP( Dmat = 2 * V,
+                                 dvec = 2 * b,
+                                 Amat = diag(1,K),
+                                 bvec = rep(0,K))
+    lambdaPos = lambdaVector$solution #solution over non-negative orthant
+    UNconstrainedSoln = lambdaVector$unconstrained.solution #solution without any constraints
+  } else{
+    lambdaPos = lam
+  }
   
   fpos <- sum(lambdaPos * b) / sqrt(as.vector(t(lambdaPos) %*% V %*% lambdaPos + EPS)) #the objective value from the constrained solution
   

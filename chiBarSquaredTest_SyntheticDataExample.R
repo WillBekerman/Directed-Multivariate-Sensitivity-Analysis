@@ -3,8 +3,9 @@
 #           Follows the simulation set-up from Cohen, Olson, and Fogart (2018)
 #                 Generates trivariate data at Gamma = 1 and performs sensitivity analysis on it
 ################################################################################
-
+set.seed(1)
 source(file = "./chiBarSquaredTest.R")
+library(tidyverse)
 
 #sources all files for generating synthetic data
 allFiles = list.files(path = "./Synthetic Data Generation Functions")
@@ -27,65 +28,260 @@ epsilon = 1E-3
 alpha = .05
 
 #Toggles printout amount
-verbose = TRUE
+verbose = T
 
 #Toggles diagnostics
-showDiagnostics = TRUE
+showDiagnostics = T
 
 #number of strata
-nostratum = 100
+nostratum = 175
+# 
+# #tau_1 (impact on first outcome)
+# Tau_1 = -.5
+# 
+# #tau_2 (impact on second outcome)
+# Tau_2 = .25
+# 
+# #tau_3 (impact on third outcome)
+# Tau_3 = .5
 
-#tau_1 (impact on first outcome)
-Tau_1 = .5
-
-#tau_2 (impact on second outcome)
-Tau_2 = -.5
-
-#tau_3 (impact on third outcome)
-Tau_3 = -.5
+Taus <- c(-0.5, -0.5, 0.25, 0.25, 0.5, 0.5)
 
 #correlation
 correlation = 0
 
 #directions
-directions = c("Greater", "Less", "Less")
-################################################################################
-#                         Creates the synthetic data
-################################################################################
-syntheticData = generateData3(rho = correlation, Tau_1 = Tau_1, Tau_2 = Tau_2, Tau_3 = Tau_3, nostratum = nostratum)
+#directions = c("Less", "Greater", "Greater")
+directions=c(rep("Less",2),rep("Greater",4))
 
-Data = syntheticData$normalData #this can be changed to use t-noised data
-psi = psi_huber #this can be changed to use an inner-trimmed psi function
+#split proportion
+planning_sample_prop=0.2
 
-################################################################################
-#                           We take in the data and turn it into
-#                           a format that works for the chibarsq-test code.
-################################################################################
-experimentalSetup = makeExperimentalSetupFromYData(Data, psi)
-Q = experimentalSetup$Q
-populationSize = dim(Q)[2]
-K = dim(Q)[1]
-Z = experimentalSetup$Z #the treatment indicator
-index = experimentalSetup$index
+#divide data into planning and analysis samples
+planning_sample_size_sets <- floor(planning_sample_prop*nostratum)
+ix_planning <- sort(sample(x=1:nostratum,size=planning_sample_size_sets))
+ix_analysis <- (1:nostratum)[-ix_planning]
+n1 <- planning_sample_size_sets
+n2 <- nostratum-planning_sample_size_sets
+
+#number of simulations to average power
+nsim=100
+
+#sim metrics to return
+sv_whole <- sv_planning <- sv_analysis <- sv_analysis_withsearch <- sv_whole_planreused <- 
+  sv_whole_wholereused <- numeric(length=nsim)
 
 
-matchedSetAssignments = rep(0, populationSize)
-for(ind in 1:length(index))
-{
-  matchedSetAssignments[unlist(index[ind])] = ind
+for (sim in 1:nsim){
+  
+  cat('\n\n\nSIMULATION NUMBER: ', sim, '\n\n\n')
+
+  ################################################################################
+  #                         Creates the synthetic data
+  ################################################################################
+  #syntheticData = generateData3(rho = correlation, Tau_1 = Tau_1, Tau_2 = Tau_2, Tau_3 = Tau_3, nostratum = nostratum)
+  syntheticData = generateData_general(rho = correlation, tauvec=Taus, nostratum = nostratum)
+  
+  
+  ################################################################################
+  #                           We take in the data and turn it into
+  #                           a format that works for the chibarsq-test code.
+  ################################################################################
+  
+  ### WHOLE SAMPLE ###
+  Data_whole = syntheticData$normalData #this can be changed to use t-noised data
+  Data_whole$s_k = apply(abs(Data_whole$YData), MARGIN = 2, FUN = median)  # s_k is set to the median currently
+  psi_whole = psi_huber #this can be changed to use an inner-trimmed psi function
+  
+  experimentalSetup_whole = makeExperimentalSetupFromYData(Data_whole, psi_whole)
+  Q_whole = experimentalSetup_whole$Q
+  populationSize_whole = dim(Q_whole)[2]
+  K_whole = dim(Q_whole)[1]
+  Z_whole = experimentalSetup_whole$Z #the treatment indicator
+  index_whole = experimentalSetup_whole$index
+  
+  matchedSetAssignments_whole = rep(0, populationSize_whole)
+  for(ind in 1:length(index_whole))
+  {
+    matchedSetAssignments_whole[unlist(index_whole[ind])] = ind
+  }
+  
+  ### PLANNING SAMPLE ###
+  Data_planning = syntheticData$normalData #this can be changed to use t-noised data
+  Data_planning$YData <- Data_planning$YData[ix_planning,]
+  Data_planning$s_k = apply(abs(Data_planning$YData), MARGIN = 2, FUN = median)  # s_k is set to the median currently
+  psi_planning = psi_huber #this can be changed to use an inner-trimmed psi function
+  
+  experimentalSetup_planning = makeExperimentalSetupFromYData(Data_planning, psi_planning)
+  Q_planning = experimentalSetup_planning$Q
+  populationSize_planning = dim(Q_planning)[2]
+  K_planning = dim(Q_planning)[1]
+  Z_planning = experimentalSetup_planning$Z #the treatment indicator
+  index_planning = experimentalSetup_planning$index
+  
+  matchedSetAssignments_planning = rep(0, populationSize_planning)
+  for(ind in 1:length(index_planning))
+  {
+    matchedSetAssignments_planning[unlist(index_planning[ind])] = ind
+  }
+  
+  ### ANALYSIS SAMPLE ###
+  Data_analysis = syntheticData$normalData #this can be changed to use t-noised data
+  Data_analysis$YData <- Data_analysis$YData[ix_analysis,]
+  Data_analysis$s_k = apply(abs(Data_analysis$YData), MARGIN = 2, FUN = median)  # s_k is set to the median currently
+  psi_analysis = psi_huber #this can be changed to use an inner-trimmed psi function
+  
+  experimentalSetup_analysis = makeExperimentalSetupFromYData(Data_analysis, psi_analysis)
+  Q_analysis = experimentalSetup_analysis$Q
+  populationSize_analysis = dim(Q_analysis)[2]
+  K_analysis = dim(Q_analysis)[1]
+  Z_analysis = experimentalSetup_analysis$Z #the treatment indicator
+  index_analysis = experimentalSetup_analysis$index
+  
+  matchedSetAssignments_analysis = rep(0, populationSize_analysis)
+  for(ind in 1:length(index_analysis))
+  {
+    matchedSetAssignments_analysis[unlist(index_analysis[ind])] = ind
+  }
+  
+  
+  ################################################################################
+  #                   Perform the Sensitivity Analysis
+  ################################################################################
+  
+  ### WHOLE SAMPLE ###
+  sensitivityResult_whole = chiBarSquaredTest(Q = Q_whole, #the data matrix
+                                        matchedSetAssignments = matchedSetAssignments_whole, #the stratum numbers for the individuals
+                                        treatmentIndicator = Z_whole, #the treatment indicator
+                                        numGamma = numGamma, #the number of Gammas to try
+                                        alpha = .05, #the significance level of the test
+                                        directions = directions, #the directions of each hypothesis
+                                        step = 10, #optimization hyperparameter
+                                        maxIter = 1000, #optimization hyperparameter
+                                        showDiagnostics = showDiagnostics, #whether or not diagonstics are output
+                                        verbose = verbose,
+                                        outputDirName = "SyntheticExample_Sensitivity_Analysis_Results_Wnole")
+  
+  
+  ### PLANNING SAMPLE ###
+  sensitivityResult_planning = chiBarSquaredTest(Q = Q_planning, #the data matrix
+                                              matchedSetAssignments = matchedSetAssignments_planning, #the stratum numbers for the individuals
+                                              treatmentIndicator = Z_planning, #the treatment indicator
+                                              numGamma = numGamma, #the number of Gammas to try
+                                              alpha = .05, #the significance level of the test
+                                              directions = directions, #the directions of each hypothesis
+                                              step = 10, #optimization hyperparameter
+                                              maxIter = 1000, #optimization hyperparameter
+                                              showDiagnostics = showDiagnostics, #whether or not diagonstics are output
+                                              verbose = verbose,
+                                              outputDirName = "SyntheticExample_Sensitivity_Analysis_Results_Planning")
+  
+  ### ANALYSIS SAMPLE ###
+  sensitivityResult_analysis = chiBarSquaredTest(Q = Q_analysis, #the data matrix
+                                              matchedSetAssignments = matchedSetAssignments_analysis, #the stratum numbers for the individuals
+                                              treatmentIndicator = Z_analysis, #the treatment indicator
+                                              numGamma = numGamma, #the number of Gammas to try
+                                              alpha = .05, #the significance level of the test
+                                              directions = directions, #the directions of each hypothesis
+                                              step = 10, #optimization hyperparameter
+                                              maxIter = 1000, #optimization hyperparameter
+                                              showDiagnostics = showDiagnostics, #whether or not diagonstics are output
+                                              verbose = verbose,
+                                              outputDirName = "SyntheticExample_Sensitivity_Analysis_Results_Analysis",
+                                              lam_init=sensitivityResult_planning$OptLambda)
+  
+  
+  ## SOME COMPARISONS ##
+  
+  sensitivityResult_analysis_withsearch = chiBarSquaredTest(Q = Q_analysis, #the data matrix
+                                                 matchedSetAssignments = matchedSetAssignments_analysis, #the stratum numbers for the individuals
+                                                 treatmentIndicator = Z_analysis, #the treatment indicator
+                                                 numGamma = numGamma, #the number of Gammas to try
+                                                 alpha = .05, #the significance level of the test
+                                                 directions = directions, #the directions of each hypothesis
+                                                 step = 10, #optimization hyperparameter
+                                                 maxIter = 1000, #optimization hyperparameter
+                                                 showDiagnostics = showDiagnostics, #whether or not diagonstics are output
+                                                 verbose = verbose,
+                                                 outputDirName = "SyntheticExample_Sensitivity_Analysis_Results_Analysis")
+  
+  
+  sensitivityResult_whole_planresused=chiBarSquaredTest(Q = Q_whole, #the data matrix
+                            matchedSetAssignments = matchedSetAssignments_whole, #the stratum numbers for the individuals
+                            treatmentIndicator = Z_whole, #the treatment indicator
+                            numGamma = numGamma, #the number of Gammas to try
+                            alpha = .05, #the significance level of the test
+                            directions = directions, #the directions of each hypothesis
+                            step = 10, #optimization hyperparameter
+                            maxIter = 1000, #optimization hyperparameter
+                            showDiagnostics = showDiagnostics, #whether or not diagonstics are output
+                            verbose = verbose,
+                            outputDirName = "SyntheticExample_Sensitivity_Analysis_Results_Wnole",
+                            lam_init = sensitivityResult_planning$OptLambda)
+  
+  
+  sensitivityResult_whole_wholeresused=chiBarSquaredTest(Q = Q_whole, #the data matrix
+                            matchedSetAssignments = matchedSetAssignments_whole, #the stratum numbers for the individuals
+                            treatmentIndicator = Z_whole, #the treatment indicator
+                            numGamma = numGamma, #the number of Gammas to try
+                            alpha = .05, #the significance level of the test
+                            directions = directions, #the directions of each hypothesis
+                            step = 10, #optimization hyperparameter
+                            maxIter = 1000, #optimization hyperparameter
+                            showDiagnostics = showDiagnostics, #whether or not diagonstics are output
+                            verbose = verbose,
+                            outputDirName = "SyntheticExample_Sensitivity_Analysis_Results_Wnole",
+                            lam_init = sensitivityResult_whole$OptLambda)
+  
+  res=list(
+    sensitivityResult_whole=sensitivityResult_whole,
+    sensitivityResult_planning=sensitivityResult_planning,
+    sensitivityResult_analysis=sensitivityResult_analysis,
+    sensitivityResult_analysis_withsearch=sensitivityResult_analysis_withsearch,
+    sensitivityResult_whole_planresused=sensitivityResult_whole_planresused,
+    sensitivityResult_whole_wholeresused=sensitivityResult_whole_wholeresused
+  )
+  
+  if (any(unlist(lapply(res,function(i)i[[2]]))<1e-6)) {warning('There may be numerical problem \n')}
+  
+  sensvals <- lapply(res,function(i)i[[1]])
+  sv_whole[sim] <- as.numeric(sensvals[1])
+  sv_planning[sim] <- as.numeric(sensvals[2])
+  sv_analysis[sim] <- as.numeric(sensvals[3])
+  sv_analysis_withsearch[sim] <- as.numeric(sensvals[4])
+  sv_whole_planreused[sim] <- as.numeric(sensvals[5])
+  sv_whole_wholereused[sim] <- as.numeric(sensvals[6])
+
 }
 
-################################################################################
-#                   Perform the Sensitivity Analysis
-################################################################################
-sensitivityResult = chiBarSquaredTest(Q = Q, #the data matrix
-                                      matchedSetAssignments = matchedSetAssignments, #the stratum numbers for the individuals
-                                      treatmentIndicator = Z, #the treatment indicator
-                                      numGamma = numGamma, #the number of Gammas to try
-                                      alpha = .05, #the significance level of the test
-                                      directions = directions, #the directions of each hypothesis
-                                      step = 100, #optimization hyperparameter
-                                      maxIter = 1000, #optimization hyperparameter
-                                      showDiagnostics = showDiagnostics, #whether or not diagonstics are output
-                                      verbose = verbose,
-                                      outputDirName = "SyntheticExample_Sensitivity_Analysis_Results")
+
+gammas_vector <- seq(from=1,to=6,by=0.25)
+
+power_sv_whole <- colSums(outer(sv_whole, gammas_vector, `>`))/nsim
+power_sv_planning <- colSums(outer(sv_planning, gammas_vector, `>`))/nsim
+power_sv_analysis <- colSums(outer(sv_analysis, gammas_vector, `>`))/nsim
+power_sv_analysis_withsearch <- colSums(outer(sv_analysis_withsearch, gammas_vector, `>`))/nsim
+power_sv_whole_planreused <- colSums(outer(sv_whole_planreused, gammas_vector, `>`))/nsim
+power_sv_whole_wholereused <- colSums(outer(sv_whole_wholereused, gammas_vector, `>`))/nsim
+
+
+methodnames <- c('Whole w/ Search','Planning w/ Search', 'Analysis w/ Planning',
+                 'Analysis w/ Search', 'Whole w/ Planning', 'Whole w/ Whole')
+df <- data.frame(Gamma=rep(gammas_vector,6),
+                 Sensitivity=c(power_sv_whole,
+                         power_sv_planning,
+                         power_sv_analysis,
+                         power_sv_analysis_withsearch,
+                         power_sv_whole_planreused,
+                         power_sv_whole_wholereused),
+                 Method=rep(methodnames,each=length(gammas_vector)))
+
+
+ggplot(df, aes(x = Gamma, y = Sensitivity)) +
+  geom_line(aes(linetype=Method,col=Method), size=1) +
+  labs(
+    x = expression(Gamma),
+    y = "Average Power"
+  )
+
+save(df,file='df_6dim_175sets.RData')

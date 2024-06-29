@@ -23,7 +23,7 @@
 #' @export
 
 computeTestStatistic = function(Q, TS, index, Gamma, Z,
-                                             alpha,  step, maxIter)
+                                             alpha,  step, maxIter, lam=NULL)
 {
   BETA <- 0.4 #Hyperparameter of optimization alg. (momentum term for gradient update)
   
@@ -37,7 +37,7 @@ computeTestStatistic = function(Q, TS, index, Gamma, Z,
   #                           Perform Subgradient Descent
   ################################################################################
   outGrad <- gradientDescent(Q, TS, index, Gamma, rho0 = outInit$rho, s0 = outInit$s,
-                            step = step, maxIter = maxIter, betam=BETA, alpha = alpha, Z=Z)
+                            step = step, maxIter = maxIter, betam=BETA, alpha = alpha, Z=Z, lam=lam)
   
   return(list(reject = outGrad$reject, lambdas = outGrad$lambdas))
 }

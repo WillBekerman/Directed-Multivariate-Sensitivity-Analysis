@@ -26,7 +26,8 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
                              numGamma = 10, alpha = .05, directions = "Greater",
                              step = 100, maxIter = 1000,
                              showDiagnostics = FALSE, verbose = FALSE,
-                             outputDirName = "Sensitivity_Analysis_Results")
+                             outputDirName = "Sensitivity_Analysis_Results",
+                             lam_init=NULL)
 {
   
   ################################################################################
@@ -134,6 +135,8 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
   triedGammas = c()
 
   Gamma = InitialGamma
+  lam=rep(0, K)
+  lamopt=rep(NA, K)
 
   while(length(triedGammas) < numGamma)
   {
@@ -141,10 +144,10 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
 
     if(Gamma == 1)
     {
-      reject = permutationTest(Q = Q, TS = TS, index = index, alpha = alpha, Z=Z, subSampleSize = 500)
+      reject = permutationTest(Q = Q, TS = TS, index = index, alpha = alpha, Z=Z, subSampleSize = 500, lam=lam_init)
     }else{
       reject = computeTestStatistic(Q, TS, index, Gamma, alpha = alpha, Z=Z, step = step,
-                                    maxIter = maxIter)
+                                    maxIter = maxIter, lam=lam_init)
     }
 
     triedGammas = c(triedGammas, Gamma)
@@ -152,6 +155,7 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
     if(reject$reject == TRUE) #doubles the Gamma to try next
     {
       LargestRejectGamma = max(Gamma, LargestRejectGamma)
+      lamopt=reject$lambdas
       if(verbose == TRUE) cat("Rejected null at Gamma =", Gamma, "\n")
       if(showDiagnostics == TRUE) cat("The lambdas are: \t", reject$lambdas)
     }
@@ -194,6 +198,7 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
   {
     if(smallestFailedGamma != 1){
       cat("Sensitivity Analysis Completed:\n\tThe largest Gamma at which the null hypothesis was rejected = ", LargestRejectGamma, "\n\tThe smallest Gamma at which the null failed to be rejected = ", smallestFailedGamma, "\n")
+      cat("The optimal lambda at this point = ", lamopt, "\n")
     }else{
       cat("At Gamma = 1, the null hypothesis fails to be rejected.\n")
     }
@@ -202,23 +207,25 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
   ################################################################################
   #                                 File output
   ################################################################################
-  dir.create(outputDirName)
+  # dir.create(outputDirName)
+  # 
+  # if(smallestFailedGamma != 1){
+  #   write(paste("Sensitivity Analysis Completed:\n\tThe largest Gamma at which the null hypothesis was rejected = ", LargestRejectGamma, "\n\tThe smallest Gamma at which the null failed to be rejected = ", smallestFailedGamma, "\n"), file = paste('./',outputDirName, '/Sensitivity_Analysis_textOutput.pdf', sep = ''))
+  # }else{
+  #   write("At Gamma = 1, the null hypothesis fails to be rejected.\n", file =  paste('./',outputDirName, '/Sensitivity_Analysis_textOutput.pdf', sep = ''))
+  # }
+  # pdf(paste('./',outputDirName, '/Sensitivity_Analysis_imageOutput.pdf', sep = ''))
+  # plot(x = 1:length(triedGammas),
+  #      y = triedGammas,
+  #      type = 'l',
+  #      xlab = 'Iteration',
+  #      ylab = expression(paste(Gamma)),
+  #      main = expression(paste(Gamma, " vs. Iteration", sep = '')),
+  #      lwd = 3,
+  #      las = 1)
+  # dev.off()
   
-  if(smallestFailedGamma != 1){
-    write(paste("Sensitivity Analysis Completed:\n\tThe largest Gamma at which the null hypothesis was rejected = ", LargestRejectGamma, "\n\tThe smallest Gamma at which the null failed to be rejected = ", smallestFailedGamma, "\n"), file = paste('./',outputDirName, '/Sensitivity_Analysis_textOutput.pdf', sep = ''))
-  }else{
-    write("At Gamma = 1, the null hypothesis fails to be rejected.\n", file =  paste('./',outputDirName, '/Sensitivity_Analysis_textOutput.pdf', sep = ''))
-  }
-  pdf(paste('./',outputDirName, '/Sensitivity_Analysis_imageOutput.pdf', sep = ''))
-  plot(x = 1:length(triedGammas),
-       y = triedGammas,
-       type = 'l',
-       xlab = 'Iteration',
-       ylab = expression(paste(Gamma)),
-       main = expression(paste(Gamma, " vs. Iteration", sep = '')),
-       lwd = 3,
-       las = 1)
-  dev.off()
-  
-  return(LargestRejectGamma)
+  return(list(LargestRejectGamma=LargestRejectGamma,
+              OptLambda=lamopt)
+  )
 }
