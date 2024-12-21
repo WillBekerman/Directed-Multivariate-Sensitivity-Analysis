@@ -63,11 +63,11 @@ maxCritChiBarUB = function(Q, index, Gamma, alpha)
   Cmax = Cmax + t(Cmax)
   
   ret = 1
-  CminInv = solve(Cmin)
-  if(all(eigen(CminInv)$values >= 0))
-  {
-    qtemp = qchibarsq(1-alpha, CminInv)
-  }
+  # CminInv = solve(Cmin)
+  # if(all(eigen(CminInv)$values >= 0))
+  # {
+  #   qtemp = qchibarsq(1-alpha, CminInv)
+  # }
   
   #optimizer to find most conservative chibarsq critical value
   chibarcritopt = function(co, alpha, qtemp)
@@ -98,36 +98,57 @@ maxCritChiBarUB = function(Q, index, Gamma, alpha)
     Sigworst = cmin + diag(1-cmin, K, K)
     crit = qchibarsq(1-alpha, solve(Sigworst))
   }else{
-    cinit = .95*cmin+.05*cmax #starts very close to lower bound (experimentally we find that often the optimal solution is at the lower bound) this is just a vector of the lower triangular entries
-    Cinit = .95*Cmin + .05*Cmax #actual matrix corresponding to cinit
-    
-    if((!(all(eigen(Cinit)$values >= 0))) && (!isTRUE(all.equal(Cinit, t(Cinit))) || any(diag(Cinit) < 0)))#if the Cinit picked is not a covariance matrix we use the cov matrix from Gamma = 1
-    {
-      nonMatchedSetIndexing = list() #converts from matched set indexing vector to the list of strata with corresponding inviduals in each list (this is called "index" elsewhere in the code, so the distinction here is made explicit)
-      for(ind in 1:length(unique(index)))
-      {
-        nonMatchedSetIndexing[[ind]] = which(index == ind)
-      }
-      
-      gamma1Point = getInitialPoint(index = nonMatchedSetIndexing, Gamma = 1)
-      sigmaAtGamma1 = calculateSigma(rho = gamma1Point$rho, Q = t(Q), index = nonMatchedSetIndexing)
-      cinit = as.vector(cov2cor(sigmaAtGamma1)[lower.tri(sigmaAtGamma1)])
-    }
-    
-    
+    cinit = rep(0, K*(K-1)/2)
     cworst = cinit
-    if(Gamma > 1) #optimizes over the feasible unmeasured confounders to find the most conservative critical value's associated inverse covariance matrix
-    {
-      cworst = optim(par = cinit, fn = chibarcritopt, alpha = alpha, qtemp = qtemp, method = "L-BFGS-B", lower = cmin, upper = cmax, control = list(lmm = 5, pgtol = 1e-8, fnscale = 1e-4))$par #no gradient usage (roughly the same performance as when gradients are used)
-      
-      # cworst = optim(par = cinit, fn = chibarcritopt, gr = chibarcritoptGradient, alpha = alpha, qtemp = qtemp, method = "L-BFGS-B", lower = cmin, upper = cmax, control = list(lmm = 5, pgtol = 1e-8, fnscale = 1e-4))$par #gradients used (included as a comment for completeness)
-    }
     Cow = diag(.5,K,K)
     Cow[lower.tri(Cow)] = cworst
     Cow = Cow + t(Cow)
     ret = 1
     CowInv = solve(Cow)
     crit = qchibarsq(1-alpha, CowInv)
+    # cinit = .95*cmin+.05*cmax #starts very close to lower bound (experimentally we find that often the optimal solution is at the lower bound) this is just a vector of the lower triangular entries
+    # Cinit = .95*Cmin + .05*Cmax #actual matrix corresponding to cinit
+    # 
+    # if((!(all(eigen(Cinit)$values >= 0))) || (!isTRUE(all.equal(Cinit, t(Cinit))) || any(diag(Cinit) < 0)))#if the Cinit picked is not a covariance matrix we use the cov matrix from Gamma = 1
+    # {
+    #   nonMatchedSetIndexing = list() #converts from matched set indexing vector to the list of strata with corresponding inviduals in each list (this is called "index" elsewhere in the code, so the distinction here is made explicit)
+    #   for(ind in 1:length(unique(index)))
+    #   {
+    #     nonMatchedSetIndexing[[ind]] = which(index == ind)
+    #   }
+    #   
+    #   gamma1Point = getInitialPoint(index = nonMatchedSetIndexing, Gamma = 1)
+    #   sigmaAtGamma1 = calculateSigma(rho = gamma1Point$rho, Q = t(Q), index = nonMatchedSetIndexing)
+    #   cinit = as.vector(cov2cor(sigmaAtGamma1)[lower.tri(sigmaAtGamma1)])
+    # }
+    # 
+    # 
+    # cworst = cinit
+    # if(Gamma > 1) #optimizes over the feasible unmeasured confounders to find the most conservative critical value's associated inverse covariance matrix
+    # {
+    #   
+    #   NUM_TRIES <- 4
+    #   for (i in 1:(NUM_TRIES-1)) {
+    #     cworst <- try({
+    #       optim(par = cinit, fn = chibarcritopt, alpha = alpha, qtemp = qtemp, method = "L-BFGS-B", lower = cmin, upper = cmax, control = list(lmm = 5, pgtol = 1e-8, fnscale = 1e-4))$par #no gradient usage (roughly the same performance as when gradients are used)
+    #     })
+    #     if (class(cworst) != "try-error") {
+    #       break
+    #     }
+    #   }
+    #   
+    #   if (class(cworst) == "try-error"){cworst = optim(par = cinit, fn = chibarcritopt, alpha = alpha, qtemp = qtemp, method = "L-BFGS-B", lower = cmin, upper = cmax, control = list(lmm = 5, pgtol = 1e-8, fnscale = 1e-4))$par} #no gradient usage (roughly the same performance as when gradients are used)
+    #   
+    #   #cworst = optim(par = cinit, fn = chibarcritopt, alpha = alpha, qtemp = qtemp, method = "L-BFGS-B", lower = cmin, upper = cmax, control = list(lmm = 5, pgtol = 1e-8, fnscale = 1e-4))$par #no gradient usage (roughly the same performance as when gradients are used)
+    #   
+    #   # cworst = optim(par = cinit, fn = chibarcritopt, gr = chibarcritoptGradient, alpha = alpha, qtemp = qtemp, method = "L-BFGS-B", lower = cmin, upper = cmax, control = list(lmm = 5, pgtol = 1e-8, fnscale = 1e-4))$par #gradients used (included as a comment for completeness)
+    # }
+    # Cow = diag(.5,K,K)
+    # Cow[lower.tri(Cow)] = cworst
+    # Cow = Cow + t(Cow)
+    # ret = 1
+    # CowInv = solve(Cow)
+    # crit = qchibarsq(1-alpha, CowInv)
   }
   crit
 }

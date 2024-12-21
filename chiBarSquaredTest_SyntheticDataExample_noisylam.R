@@ -34,25 +34,25 @@ verbose = T
 showDiagnostics = T
 
 #number of strata
-nostratum = 300
+nostratum = 175
 # 
-# #tau_1 (impact on first outcome)
-# Tau_1 = -.5
-# 
-# #tau_2 (impact on second outcome)
-# Tau_2 = .25
-# 
-# #tau_3 (impact on third outcome)
-# Tau_3 = .5
+#tau_1 (impact on first outcome)
+Tau_1 = -.5
 
-Taus <- rep(c(-0.5, -0.5, 0.25, 0.25, 0.5, 0.5),10)
+#tau_2 (impact on second outcome)
+Tau_2 = .25
+
+#tau_3 (impact on third outcome)
+Tau_3 = .5
+
+#Taus <- c(-0.5, -0.5, 0.25, 0.25, 0.5, 0.5)
 
 #correlation
 correlation = 0
 
 #directions
-#directions = c("Less", "Greater", "Greater")
-directions=rep(c(rep("Less",2),rep("Greater",4)),10)
+directions = c("Less", "Greater", "Greater")
+#directions=c(rep("Less",2),rep("Greater",4))
 
 #split proportion
 planning_sample_prop=0.2
@@ -69,19 +69,19 @@ nsim=100
 
 #sim metrics to return
 sv_whole <- sv_planning <- sv_analysis <- sv_analysis_withsearch <- sv_whole_planreused <- 
-  sv_whole_wholereused <- numeric(length=nsim)
+  sv_whole_wholereused <- sv_analysis_analysisreused <- sv_analysis_randominit <- sv_analysis_randomnoise <- numeric(length=nsim)
 
 
 for (sim in 1:nsim){
   #if (sim==6) browser()
   
-  cat('\n\n\n\n\nSIMULATION NUMBER: ', sim, '\n\n\n\n\n\n')
+  cat('\n\n\nSIMULATION NUMBER: ', sim, '\n\n\n')
   
   ################################################################################
   #                         Creates the synthetic data
   ################################################################################
-  #syntheticData = generateData3(rho = correlation, Tau_1 = Tau_1, Tau_2 = Tau_2, Tau_3 = Tau_3, nostratum = nostratum)
-  syntheticData = generateData_general(rho = correlation, tauvec=Taus, nostratum = nostratum)
+  syntheticData = generateData3(rho = correlation, Tau_1 = Tau_1, Tau_2 = Tau_2, Tau_3 = Tau_3, nostratum = nostratum)
+  #syntheticData = generateData_general(rho = correlation, tauvec=Taus, nostratum = nostratum)
   
   
   ################################################################################
@@ -207,9 +207,9 @@ for (sim in 1:nsim){
                                                             outputDirName = "SyntheticExample_Sensitivity_Analysis_Results_Analysis")
   
   
-  sensitivityResult_whole_planresused=chiBarSquaredTest(Q = Q_whole, #the data matrix
-                                                        matchedSetAssignments = matchedSetAssignments_whole, #the stratum numbers for the individuals
-                                                        treatmentIndicator = Z_whole, #the treatment indicator
+  sensitivityResult_analysis_analysisresused=chiBarSquaredTest(Q = Q_analysis, #the data matrix
+                                                        matchedSetAssignments = matchedSetAssignments_analysis, #the stratum numbers for the individuals
+                                                        treatmentIndicator = Z_analysis, #the treatment indicator
                                                         numGamma = numGamma, #the number of Gammas to try
                                                         alpha = .05, #the significance level of the test
                                                         directions = directions, #the directions of each hypothesis
@@ -218,7 +218,7 @@ for (sim in 1:nsim){
                                                         showDiagnostics = showDiagnostics, #whether or not diagonstics are output
                                                         verbose = verbose,
                                                         outputDirName = "SyntheticExample_Sensitivity_Analysis_Results_Wnole",
-                                                        lam_init = sensitivityResult_planning$OptLambda)
+                                                        lam_init = sensitivityResult_analysis_withsearch$OptLambda)
   
   
   sensitivityResult_whole_wholeresused=chiBarSquaredTest(Q = Q_whole, #the data matrix
@@ -234,13 +234,45 @@ for (sim in 1:nsim){
                                                          outputDirName = "SyntheticExample_Sensitivity_Analysis_Results_Wnole",
                                                          lam_init = sensitivityResult_whole$OptLambda)
   
+  sensitivityResult_analysis_randominit=chiBarSquaredTest(Q = Q_analysis, #the data matrix
+                                                               matchedSetAssignments = matchedSetAssignments_analysis, #the stratum numbers for the individuals
+                                                               treatmentIndicator = Z_analysis, #the treatment indicator
+                                                               numGamma = numGamma, #the number of Gammas to try
+                                                               alpha = .05, #the significance level of the test
+                                                               directions = directions, #the directions of each hypothesis
+                                                               step = 10, #optimization hyperparameter
+                                                               maxIter = 1000, #optimization hyperparameter
+                                                               showDiagnostics = showDiagnostics, #whether or not diagonstics are output
+                                                               verbose = verbose,
+                                                               outputDirName = "SyntheticExample_Sensitivity_Analysis_Results_Wnole",
+                                                               lam_init = runif(n=3,min=0,max=1))
+  
+  randomnoise = sensitivityResult_whole$OptLambda + rnorm(n=3,sd=.05)
+  randomnoise[randomnoise < 0] = 0
+  
+  sensitivityResult_analysis_randomnoise=chiBarSquaredTest(Q = Q_analysis, #the data matrix
+                                                          matchedSetAssignments = matchedSetAssignments_analysis, #the stratum numbers for the individuals
+                                                          treatmentIndicator = Z_analysis, #the treatment indicator
+                                                          numGamma = numGamma, #the number of Gammas to try
+                                                          alpha = .05, #the significance level of the test
+                                                          directions = directions, #the directions of each hypothesis
+                                                          step = 10, #optimization hyperparameter
+                                                          maxIter = 1000, #optimization hyperparameter
+                                                          showDiagnostics = showDiagnostics, #whether or not diagonstics are output
+                                                          verbose = verbose,
+                                                          outputDirName = "SyntheticExample_Sensitivity_Analysis_Results_Wnole",
+                                                          lam_init = randomnoise)
+  
+  
   res=list(
     sensitivityResult_whole=sensitivityResult_whole,
     sensitivityResult_planning=sensitivityResult_planning,
     sensitivityResult_analysis=sensitivityResult_analysis,
     sensitivityResult_analysis_withsearch=sensitivityResult_analysis_withsearch,
-    sensitivityResult_whole_planresused=sensitivityResult_whole_planresused,
-    sensitivityResult_whole_wholeresused=sensitivityResult_whole_wholeresused
+    sensitivityResult_analysis_analysisresused=sensitivityResult_analysis_analysisresused,
+    sensitivityResult_whole_wholeresused=sensitivityResult_whole_wholeresused,
+    sensitivityResult_analysis_randominit=sensitivityResult_analysis_randominit,
+    sensitivityResult_analysis_randomnoise=sensitivityResult_analysis_randomnoise
   )
   
   if (any(unlist(lapply(res,function(i)i[[2]]))<1e-6)) {warning('There may be numerical problem \n')}
@@ -250,31 +282,34 @@ for (sim in 1:nsim){
   sv_planning[sim] <- as.numeric(sensvals[2])
   sv_analysis[sim] <- as.numeric(sensvals[3])
   sv_analysis_withsearch[sim] <- as.numeric(sensvals[4])
-  sv_whole_planreused[sim] <- as.numeric(sensvals[5])
+  sv_analysis_analysisreused[sim] <- as.numeric(sensvals[5])
   sv_whole_wholereused[sim] <- as.numeric(sensvals[6])
-  
+  sv_analysis_randominit[sim] <- as.numeric(sensvals[7])
+  sv_analysis_randomnoise[sim] <- as.numeric(sensvals[8])
 }
 
 
-gammas_vector <- seq(from=1,to=100,by=2.25)
-
+gammas_vector <- seq(from=1,to=6,by=0.25)
+nsim=78
 power_sv_whole <- colSums(outer(sv_whole, gammas_vector, `>`))/nsim
 power_sv_planning <- colSums(outer(sv_planning, gammas_vector, `>`))/nsim
 power_sv_analysis <- colSums(outer(sv_analysis, gammas_vector, `>`))/nsim
 power_sv_analysis_withsearch <- colSums(outer(sv_analysis_withsearch, gammas_vector, `>`))/nsim
-power_sv_whole_planreused <- colSums(outer(sv_whole_planreused, gammas_vector, `>`))/nsim
+power_sv_analysis_analysisreused <- colSums(outer(sv_analysis_analysisreused, gammas_vector, `>`))/nsim
 power_sv_whole_wholereused <- colSums(outer(sv_whole_wholereused, gammas_vector, `>`))/nsim
+power_sv_analysisrandominit <- colSums(outer(sv_analysis_randominit, gammas_vector, `>`))/nsim
+power_sv_analysisrandomnoise <- colSums(outer(sv_analysis_randomnoise, gammas_vector, `>`))/nsim
 
 
-methodnames <- c('Whole w/ Search','Planning w/ Search', 'Analysis w/ Planning',
-                 'Analysis w/ Search', 'Whole w/ Planning', 'Whole w/ Whole')
-df <- data.frame(Gamma=rep(gammas_vector,6),
+methodnames <- c('Whole w/ Search','Analysis w/ Planning',
+                 'Analysis w/ Search', 'Analysis w/ Analysis', 'Analysis w/ Random Init', 'Analysis w/ Analysis+Noise')
+df <- data.frame(Gamma=rep(gammas_vector,length(methodnames)),
                  Sensitivity=c(power_sv_whole,
-                               power_sv_planning,
                                power_sv_analysis,
                                power_sv_analysis_withsearch,
-                               power_sv_whole_planreused,
-                               power_sv_whole_wholereused),
+                               power_sv_analysis_analysisreused,
+                               power_sv_analysisrandominit,
+                               power_sv_analysisrandomnoise),
                  Method=rep(methodnames,each=length(gammas_vector)))
 
 
@@ -284,7 +319,6 @@ ggplot(df, aes(x = Gamma, y = Sensitivity)) +
     x = expression(Gamma),
     y = "Average Power"
   )
-
 ggplot(df, aes(x = Gamma, y = Sensitivity)) +
   geom_smooth(aes(linetype=Method,col=Method), size=1,se = FALSE) + 
   labs(
@@ -292,4 +326,4 @@ ggplot(df, aes(x = Gamma, y = Sensitivity)) +
     y = "Average Power"
   )
 
-#save(df,file='df_60dim_300sets.RData')
+#save(df,file='df_6dim_350sets.RData')

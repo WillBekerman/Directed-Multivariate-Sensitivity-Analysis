@@ -29,7 +29,7 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
                              outputDirName = "Sensitivity_Analysis_Results",
                              lam_init=NULL)
 {
-  
+  #browser()
   ################################################################################
   #                         Set-up (load packages, format data)
   ################################################################################
@@ -135,16 +135,18 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
   triedGammas = c()
 
   Gamma = InitialGamma
-  lam=rep(0, K)
+  #lam=rep(0, K) ## COMMENT THIS LINE OUT
   lamopt=rep(NA, K)
 
   while(length(triedGammas) < numGamma)
   {
+    #if (Gamma==16) browser()
     if(verbose == TRUE) cat("Trying Gamma =", Gamma, "\n") #diagnostic
 
     if(Gamma == 1)
     {
-      reject = permutationTest(Q = Q, TS = TS, index = index, alpha = alpha, Z=Z, subSampleSize = 500, lam=lam_init)
+      reject = computeTestStatistic(Q, TS, index, Gamma, alpha = alpha, Z=Z, step = step,
+                                    maxIter = maxIter, lam=lam_init)#permutationTest(Q = Q, TS = TS, index = index, alpha = alpha, Z=Z, subSampleSize = 500, lam=lam_init)
     }else{
       reject = computeTestStatistic(Q, TS, index, Gamma, alpha = alpha, Z=Z, step = step,
                                     maxIter = maxIter, lam=lam_init)
