@@ -10,16 +10,19 @@
 #' @param V the covariance matrix
 #' @param lower.tail which tail of the distribution (defaults to TRUE)
 #' @param log.p return probabilities on log scale (defaults to FALSE)
+#' @param wts optional vector of pre-computed weights for Chi-bar-sq dist. (defaults to NULL)
 #' 
 #' @return ans: the probability
 #' 
 #' @export
 
-pchibarsq=function(q, V, lower.tail=TRUE, log.p=FALSE)
+pchibarsq=function(q, V, lower.tail=TRUE, log.p=FALSE, wts=NULL)
 {
   n<-nrow(V)
   
-  wts<-wchibarsq(V) 
+  if (is.null(wts)) {
+    wts<-wchibarsq(V) 
+  }
   
   ans<-pchisq(q, 0, lower.tail=FALSE)*wts[1L]+
     pchisq(q, n, lower.tail=FALSE)*wts[n+1L]
@@ -74,16 +77,23 @@ wchibarsq=function(V) ## weights
 #' 
 #' @param p the probability
 #' @param V the covariance matrix
+#' @param wts optional vector of pre-computed weights for Chi-bar-sq dist. (defaults to NULL)
 #' 
 #' @return ans the quantile
 #' 
 #' @export
-qchibarsq =function(p, V)
+qchibarsq =function(p, V, wts=NULL)
 {
   K = ncol(V)
-  pchiroot = function(q, V){pchibarsq(q, V) - p}
   
-  ans = uniroot(pchiroot, c(0, qchisq(p, K)), V=V)$root
+  if (is.null(wts)){
+    pchiroot = function(q, V){pchibarsq(q, V) - p}
+    ans = uniroot(pchiroot, c(0, qchisq(p, K)), V=V)$root
+  } else {
+    pchiroot = function(q, V, wts){pchibarsq(q, V, wts=wts) - p}
+    ans = uniroot(pchiroot, c(0, qchisq(p, K)), V=V, wts=wts)$root
+  }
+  
   return (ans)
 }
 
