@@ -14,6 +14,8 @@
 #' @param directions the vector where the k^th element is the direction of the alternative for the k^th outcome (Accepts "Less" or "Greater" in each entry), (defaults to "Greater" in all entries)
 #' @param step the step-size in the subgradient descent (defaults to 100)
 #' @param maxIter the maximum number of iterations of subgradient descent (defaults to 1000)
+#' @param trueCor the known, constant correlation between outcome variables (defaults to NULL)
+#' @param noCorBounds toggles optimistic speed-up using estimated worst-case rho to compute chi-bar-squared quantile if TRUE (defaults to FALSE)
 #' @param showDiagnostics toggles diagnostics to be shown
 #' @param verbose toggles extra text output
 #' @param outputDirName a string for the name of the directory to output the results to (defaults to ""Sensitivity_Analysis_Results")
@@ -25,6 +27,7 @@
 chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator, 
                              numGamma = 10, alpha = .05, directions = "Greater",
                              step = 100, maxIter = 1000,
+                             trueCor = NULL, noCorBounds = FALSE,
                              showDiagnostics = FALSE, verbose = FALSE,
                              outputDirName = "Sensitivity_Analysis_Results")
 {
@@ -109,7 +112,7 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
   
   Q = diag(directionsScaling)%*%Q #multiplies each row for which there is a "Less" direction by negative 1, then the code proceeds by testing "Greater" directions on this pre-processed data.
   
-
+  
   
   print(t(head(t(Q))))
   
@@ -132,37 +135,37 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
   smallestFailedGamma = Inf
   LargestRejectGamma = 1
   triedGammas = c()
-
+  
   Gamma = InitialGamma
-
+  
   while(length(triedGammas) < numGamma)
   {
     if(verbose == TRUE) cat("Trying Gamma =", Gamma, "\n") #diagnostic
-
+    
     if(Gamma == 1)
     {
       reject = permutationTest(Q = Q, TS = TS, index = index, alpha = alpha, Z=Z, subSampleSize = 500)
     }else{
       reject = computeTestStatistic(Q, TS, index, Gamma, alpha = alpha, Z=Z, step = step,
-                                    maxIter = maxIter)
+                                    maxIter = maxIter, trueCor = trueCor, noCorBounds = noCorBounds)
     }
-
+    
     triedGammas = c(triedGammas, Gamma)
-
+    
     if(reject$reject == TRUE) #doubles the Gamma to try next
     {
       LargestRejectGamma = max(Gamma, LargestRejectGamma)
       if(verbose == TRUE) cat("Rejected null at Gamma =", Gamma, "\n")
       if(showDiagnostics == TRUE) cat("The lambdas are: \t", reject$lambdas)
     }
-
+    
     if(reject$reject == FALSE) #the next Gamma is the average of the last two Gammas tried (one which rejected and one which failed to reject)
     {
       if(verbose == TRUE) cat("Failed to reject null at Gamma =", Gamma, "\n")
-
+      
       smallestFailedGamma = min(Gamma, smallestFailedGamma)
     }
-
+    
     if (smallestFailedGamma == Inf)
     {
       Gamma = 2*Gamma
