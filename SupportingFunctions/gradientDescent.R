@@ -143,8 +143,8 @@ gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step, maxIter, betam,
       }
     }
     
-    invcovmat = solve(calculateSigma(rho=rhoBest,Q=t(Q),index=index))
-    crit = qchibarsq(1-alpha, invcovmat, wchibarsq(invcovmat))
+    invcovmat = solve(calculateSigma(rho=rhoBest,Q=Q,index=index))
+    crit = qchibarsq(1-alpha, invcovmat, wchibarsq(invcovmat)) # note, if wts argument non-null, V vs. solve(V) doesnt matter
     reject = (fBest > sqrt(crit))
     
   } else {

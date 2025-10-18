@@ -40,8 +40,8 @@ maxCritChiBarUB = function(Q, index, Gamma, alpha, trueCor)
     
     else{
       V = (1 - trueCor) * diag(K) + trueCor * matrix(1, K, K)
-      if (K>12) { # `wchibarsq()` starts becoming intractable
-        wts = wchibarsq(V)
+      if (K<=12) { # `wchibarsq()` starts becoming intractable around K=12
+        wts = wchibarsq(solve(V))
       } else { # have to simulate weights
         nsim=1000000 # hyperparameter, typically works well in practice
         for(sim in 1:nsim){
@@ -58,7 +58,7 @@ maxCritChiBarUB = function(Q, index, Gamma, alpha, trueCor)
       }
     }
     
-    crit = qchibarsq(1-alpha, solve(V), wts)
+    crit = qchibarsq(1-alpha, solve(V), wts) # note, if wts argument non-null, V vs. solve(V) doesnt matter
     return(crit)
   }
   
