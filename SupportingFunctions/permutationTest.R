@@ -28,7 +28,8 @@ computeTestStatistic_Gamma1 = function(Q, TS, index, treatmentAllocation)
   
   fpos <- sum(lambdaPos * b) / sqrt(as.vector(t(lambdaPos) %*% V %*% lambdaPos + EPS))
   
-  return(fpos)
+  return(list(fpos=fpos,
+              contrast=lambdaPos))
 }
 
 ################################################################################
@@ -71,7 +72,7 @@ permutationTest = function(Q, TS, index, alpha = alpha, Z=Z, subSampleSize = 500
   #                           Calculate the optimal lambdas 
   #                           and observed test statistic
   ################################################################################
-  observedTestStatistic = computeTestStatistic_Gamma1(Q, TS, index, Z)
+  observedTestStatistic = computeTestStatistic_Gamma1(Q, TS, index, Z)$fpos
   
   ################################################################################
   #                           Creates a collection of 
@@ -102,7 +103,7 @@ permutationTest = function(Q, TS, index, alpha = alpha, Z=Z, subSampleSize = 500
   #                           Computes the test statistic w.r.t. 
   #                           the newly randomized treatment allocations
   ################################################################################
-  randomizationOfTreatment = apply(randomizationMatrix, MARGIN = 2, FUN = function(val) computeTestStatistic_Gamma1(Q, TS, index, val))
+  randomizationOfTreatment = apply(randomizationMatrix, MARGIN = 2, FUN = function(val) computeTestStatistic_Gamma1(Q, TS, index, val)$fpos)
   
   ################################################################################
   #                           Compute p-values from the permutation test
@@ -111,5 +112,6 @@ permutationTest = function(Q, TS, index, alpha = alpha, Z=Z, subSampleSize = 500
   pValue_Upper = (length(which(randomizationOfTreatment >= observedTestStatistic)) + 1) / (length(randomizationOfTreatment) + 1) #p-value for greater than test
   pValue_Lower = (length(which(randomizationOfTreatment <= observedTestStatistic)) + 1) / (length(randomizationOfTreatment) + 1) #p-value for less than test
   
-  return(list(reject = (pValue_Upper <= alpha))) #currently just outputs the rejection for the greater-than test.
+  return(list(reject = (pValue_Upper <= alpha),
+              contrast = computeTestStatistic_Gamma1(Q, TS, index, Z)$contrast/sum(computeTestStatistic_Gamma1(Q, TS, index, Z)$contrast))) #currently just outputs the rejection for the greater-than test.
 }

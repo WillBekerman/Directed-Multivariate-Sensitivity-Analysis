@@ -29,6 +29,7 @@
 #' @param Z treatment indicator
 #' @param trueCor the known, constant correlation between outcome variables (defaults to NULL)
 #' @param noCorBounds toggles optimistic speed-up using estimated worst-case rho to compute chi-bar-squared quantile if TRUE (defaults to FALSE)
+#' @param useNormalQuantile toggles use of critical value from standard Normal distribution, instead of chi-bar-squared if TRUE (defaults to FALSE)
 #' 
 #' @return fval: the optimal objective value
 #' @return rho: the rho configuration corresponding to the optimal objective value
@@ -41,7 +42,7 @@
 
 
 gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step, maxIter, betam,
-                            alpha, Z, trueCor, noCorBounds){
+                            alpha, Z, trueCor, noCorBounds, useNormalQuantile){
   I <- length(index) #number of strata
   N <- dim(Q)[2] #population size
   rho <- rho0; #initial rho
@@ -84,78 +85,19 @@ gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step, maxIter, betam,
   
   if (noCorBounds){
     
-    crit_conservative <- .5 * qchisq(1-alpha, K) + .5 * qchisq(1-alpha, K-1) # conservative UB for crit, only used to speed up
-    
-    while(iter <= maxIter){
-      # find lambdastar and objective value
-      outLambda <- innerSolve(rho, Q, TS, index)
-      
-      if(iter <= maxIter)
-      {
-        Lmat = matrix(outLambda$lambda, length(matchedSetAssignments), K, byrow=T)
-        qlam = rowSums(Lmat*t(Q))
-        rr = univariateRoot(Gamma, matchedSetAssignments, qlam, Z, kappa = crit_conservative, alternative = "G")
-        if(rr > 0)
-        {
-          fBest = 2*sqrt(crit_conservative)
-          sBest <- s
-          rhoBest <- rho
-          iter = maxIter + 1
-        }
-      }
-      
-      if(iter <= maxIter)
-      {
-        fval[iter] <- outLambda$optval
-        
-        if(fval[iter] < fBest){
-          fBest <- fval[iter]
-          sBest <- s
-          rhoBest <- rho
-        }
-        
-        if(iter <= maxIter){
-          # find the gradient
-          outGrad <- gradient(rho, outLambda$lambda, Q, TS, index)
-          
-          # project gradient step
-          for(i in 1:I){
-            
-            ix <- index[[i]]
-            gstep <- c(rho[ix], s[i]) - (1-betam)*tt*c(outGrad$grad[ix], 0) +
-              betam*(c(rho[ix], s[i]) - c(rhoOld[ix],sOld[i]))
-            
-            outProject <- constraintProject(Gamma, gstep)
-            rhoOld[ix] <- rho[ix]
-            sOld[i] <- s[i]
-            rho[ix] <- outProject$x
-            s[i] <- outProject$s
-          }
-          
-          # iteration processing
-          if(iter %% 10 == 0 && showDiagnostics == TRUE)
-            cat("Iteration: ", iter, "    Obj. Val:", fval[iter], "\n")
-          iter <- iter + 1
-          tt <- step/sqrt(iter)
-        }else{
-          iter = maxIter + 1#when we can't take gradients because we are at lambda = (0, 0)  we quit the loop
-        }
-      }
-    }
-    
-    invcovmat = solve(calculateSigma(rho=rhoBest,Q=Q,index=index))
-    crit = qchibarsq(1-alpha, invcovmat, wchibarsq(invcovmat)) # note, if wts argument non-null, V vs. solve(V) doesnt matter
-    reject = (fBest > sqrt(crit))
+    ##todo
     
   } else {
     
-    if(K != 1) #multivariate case (K > 1)
-    {
-      crit = maxCritChiBarUB(t(Q), matchedSetAssignments, Gamma, alpha, trueCor)
-    }
-    if(K == 1) #univariate case (K = 1)
-    {
-      crit =  qchisq(1-alpha, K)
+    if (useNormalQuantile){
+      crit = qnorm(1-alpha)^2 # since we take sqrt later
+    } else{
+      if(K != 1){ # multivariate case (K > 1)
+        crit = maxCritChiBarUB(t(Q), matchedSetAssignments, Gamma, alpha, trueCor)
+      }
+      if(K == 1){ # univariate case (K = 1)
+        crit =  qchisq(1-alpha, K)
+      }
     }
     
     while(iter <= maxIter){
@@ -164,22 +106,11 @@ gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step, maxIter, betam,
       
       if(outLambda$optval < sqrt(crit)-1e-3)
       {
-        fBest = outLambda$optval 
+        fBest = outLambda$optval
         sBest <- s
         rhoBest <- rho
+        lambdaBest <- outLambda$lambda
         iter = maxIter + 1 #break out of the loop
-      }
-      
-      if(iter <= maxIter)
-      {
-        Lmat = matrix(outLambda$lambda, length(matchedSetAssignments), K, byrow=T)
-        qlam = rowSums(Lmat*t(Q))
-        rr = univariateRoot(Gamma, matchedSetAssignments, qlam, Z, kappa = crit, alternative = "G")
-        if(rr > 0)
-        {
-          fBest = 2*sqrt(crit)
-          iter = maxIter + 1
-        }
       }
       
       if(iter <= maxIter)
@@ -190,7 +121,15 @@ gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step, maxIter, betam,
           fBest <- fval[iter]
           sBest <- s
           rhoBest <- rho
+          lambdaBest <- outLambda$lambda
         }
+        
+        # stop early if convergence criterion reached (error tolerance met for function
+        # values across window-size of ten iterations)
+        # note: this removes theoretical convergence guarantee, but is fine in practice and saves lots of time for bigger problems
+        # if(iter > 100 && all(abs(diff(fval[(iter-10):iter])) < 1e-8)){
+        #   iter = maxIter + 1 #break out of the loop
+        # }
         
         if(iter <= maxIter){
           # find the gradient
@@ -210,8 +149,12 @@ gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step, maxIter, betam,
             s[i] <- outProject$s
           }
           
+          # if(iter > 1 && (fval[iter]>=fval[iter-1])){
+          #   tt <- .9*tt
+          # } 
+          
           # iteration processing
-          if(iter %% 10 == 0 && showDiagnostics == TRUE)
+          if(iter %% 100 == 0 && showDiagnostics == TRUE)
             cat("Iteration: ", iter, "    Obj. Val:", fval[iter], "\n")
           iter <- iter + 1
           tt <- step/sqrt(iter)
@@ -224,6 +167,6 @@ gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step, maxIter, betam,
     reject = (fBest > sqrt(crit))
     
   }
-  
-  list(fval=fBest, rho=rhoBest, s=sBest, lambdas = outLambda$lambda, reject = reject, critval = sqrt(crit))
+
+  list(fval=fBest, rho=rhoBest, s=sBest, lambdas = lambdaBest/sum(lambdaBest), reject = reject, critval = sqrt(crit))
 }

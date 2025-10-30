@@ -16,6 +16,7 @@
 #' @param maxIter the maximum number of iterations of subgradient descent (defaults to 1000)
 #' @param trueCor the known, constant correlation between outcome variables (defaults to NULL)
 #' @param noCorBounds toggles optimistic speed-up using estimated worst-case rho to compute chi-bar-squared quantile if TRUE (defaults to FALSE)
+#' @param useNormalQuantile toggles use of critical value from standard Normal distribution, instead of chi-bar-squared if TRUE (defaults to FALSE)
 #' @param showDiagnostics toggles diagnostics to be shown
 #' @param verbose toggles extra text output
 #' @param outputDirName a string for the name of the directory to output the results to (defaults to ""Sensitivity_Analysis_Results")
@@ -27,7 +28,7 @@
 chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator, 
                              numGamma = 10, alpha = .05, directions = "Greater",
                              step = 100, maxIter = 1000,
-                             trueCor = NULL, noCorBounds = FALSE,
+                             trueCor = NULL, noCorBounds = FALSE, useNormalQuantile = FALSE,
                              showDiagnostics = FALSE, verbose = FALSE,
                              outputDirName = "Sensitivity_Analysis_Results")
 {
@@ -137,17 +138,19 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
   triedGammas = c()
   
   Gamma = InitialGamma
+  opt_contrast = rep(NA,K)
   
   while(length(triedGammas) < numGamma)
   {
-    if(verbose == TRUE) cat("Trying Gamma =", Gamma, "\n") #diagnostic
+    if(verbose == TRUE) cat("\n\nTrying Gamma =", Gamma, "\n") #diagnostic
     
     if(Gamma == 1)
     {
       reject = permutationTest(Q = Q, TS = TS, index = index, alpha = alpha, Z=Z, subSampleSize = 500)
     }else{
       reject = computeTestStatistic(Q, TS, index, Gamma, alpha = alpha, Z=Z, step = step,
-                                    maxIter = maxIter, trueCor = trueCor, noCorBounds = noCorBounds)
+                                    maxIter = maxIter, trueCor = trueCor, noCorBounds = noCorBounds,
+                                    useNormalQuantile = useNormalQuantile)
     }
     
     triedGammas = c(triedGammas, Gamma)
@@ -155,8 +158,9 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
     if(reject$reject == TRUE) #doubles the Gamma to try next
     {
       LargestRejectGamma = max(Gamma, LargestRejectGamma)
+      opt_contrast = reject$contrast
       if(verbose == TRUE) cat("Rejected null at Gamma =", Gamma, "\n")
-      if(showDiagnostics == TRUE) cat("The lambdas are: \t", reject$lambdas)
+      if(showDiagnostics == TRUE) cat("The lambdas are: \t", reject$contrast)
     }
     
     if(reject$reject == FALSE) #the next Gamma is the average of the last two Gammas tried (one which rejected and one which failed to reject)
@@ -171,7 +175,9 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
       Gamma = 2*Gamma
     }else if (smallestFailedGamma == 1)
     {
-      if(verbose == TRUE) cat("Permuration test at Gamma = 1 failed to reject.\n")
+      opt_contrast = reject$contrast
+      if(verbose == TRUE) cat("Permutation test at Gamma = 1 failed to reject.\n")
+      if(showDiagnostics == TRUE) cat("The lambdas are: \t", reject$contrast)
       break
     }else
     {
@@ -196,9 +202,9 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
   if(verbose == TRUE)
   {
     if(smallestFailedGamma != 1){
-      cat("Sensitivity Analysis Completed:\n\tThe largest Gamma at which the null hypothesis was rejected = ", LargestRejectGamma, "\n\tThe smallest Gamma at which the null failed to be rejected = ", smallestFailedGamma, "\n")
+      cat("\n\nSensitivity Analysis Completed:\n\tThe largest Gamma at which the null hypothesis was rejected = ", LargestRejectGamma, "\n\tThe smallest Gamma at which the null failed to be rejected = ", smallestFailedGamma, "\n")
     }else{
-      cat("At Gamma = 1, the null hypothesis fails to be rejected.\n")
+      cat("\n\nAt Gamma = 1, the null hypothesis fails to be rejected.\n")
     }
   }
   
@@ -223,5 +229,6 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
        las = 1)
   dev.off()
   
-  return(LargestRejectGamma)
+  return(list(LargestRejectGamma=LargestRejectGamma,
+              lambda=opt_contrast))
 }
