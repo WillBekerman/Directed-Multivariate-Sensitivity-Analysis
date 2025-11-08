@@ -14,7 +14,7 @@
 #' @param directions the vector where the k^th element is the direction of the alternative for the k^th outcome (Accepts "Less" or "Greater" in each entry), (defaults to "Greater" in all entries)
 #' @param step the step-size in the subgradient descent (defaults to 100)
 #' @param maxIter the maximum number of iterations of subgradient descent (defaults to 1000)
-#' @param trueCor the known, constant correlation between outcome variables (defaults to NULL)
+#' @param trueCrit the known, pre-computed chi-bar-squared critical value (defaults to NULL)
 #' @param noCorBounds toggles optimistic speed-up using estimated worst-case rho to compute chi-bar-squared quantile if TRUE (defaults to FALSE)
 #' @param useNormalQuantile toggles use of critical value from standard Normal distribution, instead of chi-bar-squared if TRUE (defaults to FALSE)
 #' @param showDiagnostics toggles diagnostics to be shown
@@ -28,7 +28,7 @@
 chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator, 
                              numGamma = 10, alpha = .05, directions = "Greater",
                              step = 100, maxIter = 1000,
-                             trueCor = NULL, noCorBounds = FALSE, useNormalQuantile = FALSE,
+                             trueCrit = NULL, noCorBounds = FALSE, useNormalQuantile = FALSE,
                              showDiagnostics = FALSE, verbose = FALSE,
                              outputDirName = "Sensitivity_Analysis_Results")
 {
@@ -149,7 +149,7 @@ chiBarSquaredTest = function(Q, matchedSetAssignments, treatmentIndicator,
       reject = permutationTest(Q = Q, TS = TS, index = index, alpha = alpha, Z=Z, subSampleSize = 500)
     }else{
       reject = computeTestStatistic(Q, TS, index, Gamma, alpha = alpha, Z=Z, step = step,
-                                    maxIter = maxIter, trueCor = trueCor, noCorBounds = noCorBounds,
+                                    maxIter = maxIter, trueCrit = trueCrit, noCorBounds = noCorBounds,
                                     useNormalQuantile = useNormalQuantile)
     }
     

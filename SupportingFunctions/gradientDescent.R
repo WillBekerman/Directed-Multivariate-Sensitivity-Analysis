@@ -27,7 +27,7 @@
 #' @param betam momentum term for gradient update
 #' @param alpha the significance level
 #' @param Z treatment indicator
-#' @param trueCor the known, constant correlation between outcome variables (defaults to NULL)
+#' @param trueCrit the known, constant correlation between outcome variables (defaults to NULL)
 #' @param noCorBounds toggles optimistic speed-up using estimated worst-case rho to compute chi-bar-squared quantile if TRUE (defaults to FALSE)
 #' @param useNormalQuantile toggles use of critical value from standard Normal distribution, instead of chi-bar-squared if TRUE (defaults to FALSE)
 #' 
@@ -42,7 +42,7 @@
 
 
 gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step, maxIter, betam,
-                            alpha, Z, trueCor, noCorBounds, useNormalQuantile){
+                            alpha, Z, trueCrit, noCorBounds, useNormalQuantile){
   I <- length(index) #number of strata
   N <- dim(Q)[2] #population size
   rho <- rho0; #initial rho
@@ -141,7 +141,11 @@ gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step, maxIter, betam,
       crit = qnorm(1-alpha)^2 # since we take sqrt later
     } else{
       if(K != 1){ # multivariate case (K > 1)
-        crit = maxCritChiBarUB(t(Q), matchedSetAssignments, Gamma, alpha, trueCor)
+        if (!is.null(trueCrit)){
+          crit = trueCrit
+        } else {
+          crit = maxCritChiBarUB(t(Q), matchedSetAssignments, Gamma, alpha)
+        }
       }
       if(K == 1){ # univariate case (K = 1)
         crit =  qchisq(1-alpha, K)

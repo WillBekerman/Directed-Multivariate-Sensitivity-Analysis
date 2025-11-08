@@ -16,7 +16,7 @@
 #' @param alpha the significance level of the test (defaults to .05)
 #' @param step the step-size in the subgradient descent (defaults to 100)
 #' @param maxIter the maximum number of iterations of subgradient descent (defaults to 1000)
-#' @param trueCor the known, constant correlation between outcome variables (defaults to NULL)
+#' @param trueCrit the known, pre-computed chi-bar-squared critical value (defaults to NULL)
 #' @param noCorBounds toggles optimistic speed-up using estimated worst-case rho to compute chi-bar-squared quantile if TRUE (defaults to FALSE)
 #' @param useNormalQuantile toggles use of critical value from standard Normal distribution, instead of chi-bar-squared if TRUE (defaults to FALSE)
 
@@ -26,7 +26,7 @@
 #' @export
 
 computeTestStatistic = function(Q, TS, index, Gamma, Z, alpha, step, maxIter,
-                                trueCor, noCorBounds, useNormalQuantile)
+                                trueCrit, noCorBounds, useNormalQuantile)
 {
   BETA <- 0.4 #Hyperparameter of optimization alg. (momentum term for gradient update)
   
@@ -41,7 +41,7 @@ computeTestStatistic = function(Q, TS, index, Gamma, Z, alpha, step, maxIter,
   ################################################################################
   outGrad <- gradientDescent(Q, TS, index, Gamma, rho0 = outInit$rho, s0 = outInit$s,
                              step = step, maxIter = maxIter, betam=BETA, alpha = alpha, Z=Z,
-                             trueCor = trueCor, noCorBounds = noCorBounds, useNormalQuantile = useNormalQuantile)
+                             trueCrit = trueCrit, noCorBounds = noCorBounds, useNormalQuantile = useNormalQuantile)
   
   return(list(reject = outGrad$reject, contrast = outGrad$lambdas))
 }

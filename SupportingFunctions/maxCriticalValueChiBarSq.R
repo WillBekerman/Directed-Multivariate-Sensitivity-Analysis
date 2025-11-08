@@ -12,55 +12,19 @@
 #' @param index an alternative form of indexing useful for computation.  The t^th element is the list of all individuals in the t^th matched set
 #' @param Gamma the sensitivity parameter
 #' @param alpha the significance level of the test
-#' @param trueCor the known, constant correlation between outcome variables (defaults to NULL)
 #' 
 #' @return crit: the most conservative feasible 1-alpha ChibarSq. critical value
 #' 
 #' @export
 
 
-maxCritChiBarUB = function(Q, index, Gamma, alpha, trueCor)
+maxCritChiBarUB = function(Q, index, Gamma, alpha)
 {
   K= ncol(Q)
   nostratum = length(unique(index))
   cmin = rep(0, K*(K-1)/2)
   cmax = cmin
   iter = 1
-  
-  if (!is.null(trueCor)){ # can either use `wchibarsq()` for small K, simulate wts, or closed form for UB
-    
-    wts<-numeric(K+1L)
-    
-    if (trueCor == 0){ # trueCor is zero (i.e., covariance is identity); closed-form soln
-      V=diag(K)
-      wts[1]<-pmvnorm(rep(0,K),rep(Inf,K),sigma=solve(V))[[1]]
-      wts[K+1L]<-pmvnorm(rep(0,K), rep(Inf,K),sigma=V)[[1]]
-      for(i in seq(1L, K-1L, by=1L)) wts[i+1]= (2^(-K)*factorial(K))/(factorial(i)*factorial(K-i))
-    }
-    
-    else{
-      V = (1 - trueCor) * diag(K) + trueCor * matrix(1, K, K)
-      if (K<=12) { # `wchibarsq()` starts becoming intractable around K=12
-        wts = wchibarsq(solve(V))
-      } else { # have to simulate weights
-        nsim=1000000 # hyperparameter, typically works well in practice
-        for(sim in 1:nsim){
-          y = fourPNO::rmvnorm(n=1, mu=rep(0,K), sigma = V)
-          matprod=quadprog::solve.QP( Dmat = solve(V),
-                                      dvec = y%*%solve(V),
-                                      Amat = diag(1,K),
-                                      bvec = rep(0,K) )$solution
-          numpos=sum(matprod>1E-6)
-          wts[numpos+1] <- wts[numpos+1] + 1
-        }
-        wtsvec=wts/nsim
-        wts<-rev(wtsvec) #w_i(p,V) = w_{p-i}(p,V^{-1})
-      }
-    }
-    
-    crit = qchibarsq(1-alpha, solve(V), wts) # note, if wts argument non-null, V vs. solve(V) doesnt matter
-    return(crit)
-  }
   
   pairMatching = (max(sort(table(index),decreasing=TRUE)) == 2) #indicator of whether the experiment is pair-matched
   
