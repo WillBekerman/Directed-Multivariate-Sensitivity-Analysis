@@ -86,7 +86,7 @@ chibarsq_pos_corr_quantiles
 # Main function on planning stage -- get optimal contrast at sensitivity value
 main_planning <- function(dat, directions, method='PGD', psi.f='Huber', trim.in.vec=NULL, numGamma=15, alpha=0.05){
   
-  # check dat, directions, method, numGamma, trueCor, alpha arguments
+  # check dat, directions, method, numGamma, alpha arguments
   stopifnot(!is.null(dat))
   stopifnot(!is.null(directions) && (length(directions)==ncol(dat) && sum(directions %in% c('Greater','Less'))==length(directions)))
   stopifnot(!is.null(method) && (method=='L-BFGS-B')||(method=='PGD'))
@@ -402,7 +402,7 @@ library("tidyverse")
 run_sim <- function(nostratum,
                     Taus,
                     directions,
-                    correlation,
+                    correlation, # the known, constant correlation between outcome variables
                     psi.f = 'Huber',
                     noise.dist = 'Normal',
                     run_comparators = TRUE, # Whole w/ Search, Whole w/ DS
@@ -410,7 +410,8 @@ run_sim <- function(nostratum,
                     nsim = 1000,
                     seed = 0,
                     numGamma = 15,
-                    alpha = 0.05){
+                    alpha = 0.05,
+                    parallel = TRUE){
   
   # set seed for reproducibility
   set.seed(seed)
@@ -488,65 +489,196 @@ run_sim <- function(nostratum,
   directionsScaling[directions=='Less'] = -1
   lam_optdesignsens = lam_optdesignsens*directionsScaling
   
-  #-----loop over simulations-----
-  for (sim in 1:nsim){
-    
-    cat('\n\n\n\n\nSIMULATION NUMBER: ', sim, '\n\n\n\n\n\n')
-    
-    # create and split synthetic data into planning and analysis samples
-    syntheticData = generateData(rho = correlation,
-                                 tauvec = Taus,
-                                 nostratum = nostratum)
-    Data_whole = syntheticData$normalData
-    planning_sample_size_sets <- floor(planning_sample_prop*nostratum)
-    ix_planning <- sort(sample(x=1:nostratum,size=planning_sample_size_sets))
-    ix_analysis <- (1:nostratum)[-ix_planning]
-    # split data and run our sensitivity analysis
-    # planning sample
-    Data_planning <- Data_whole$YData[ix_planning,]
-    planning_result <- main_planning(Data_planning, directions, method='PGD', 
-                                     psi.f=psi.f, numGamma=numGamma)
-    # analysis sample
-    Data_analysis <- Data_whole$YData[ix_analysis,]
-    analysis_result <- main_fixedlam(Data_analysis,
-                                     planning_result$lambda,
-                                     psi.f=psi.f,
-                                     numGamma=numGamma,
-                                     alpha=alpha)
-    if (run_comparators){ # run alternative sensitivity analyses
-      # Comparator: whole with search (Cohen et al. 2020)
-      Data_whole$s_k = apply(abs(Data_whole$YData), MARGIN = 2, FUN = median)
-      experimentalSetup_whole = makeExperimentalSetupFromYData(Data_whole,psi)
-      Q_whole = experimentalSetup_whole$Q
-      Z_whole = experimentalSetup_whole$Z
-      index_whole = experimentalSetup_whole$index
-      matchedSetAssignments_whole = rep(0, ncol(Q_whole))
-      for(ind in 1:length(index_whole)){
-        matchedSetAssignments_whole[unlist(index_whole[ind])] = ind
-      }
-      wholewithsearch_result = chiBarSquaredTest(Q = Q_whole,
-                                                 matchedSetAssignments = matchedSetAssignments_whole,
-                                                 treatmentIndicator = Z_whole,
-                                                 numGamma = numGamma,
-                                                 alpha = alpha,
-                                                 directions = directions,
-                                                 step = 5,
-                                                 maxIter = 1000,
-                                                 trueCor = correlation,
-                                                 showDiagnostics = showDiagnostics,
-                                                 verbose = verbose,
-                                                 outputDirName = "Sims_Results_WholewithSearch")
-      # Comparator: whole with design sensitivity
-      wholewithds_result = main_fixedlam(Data_whole$YData,
-                                         lam_optdesignsens,
-                                         psi.f=psi.f,
-                                         numGamma=numGamma,
-                                         alpha=alpha)
-      wholewithsearch_sv[sim] <- wholewithsearch_result$LargestRejectGamma
-      wholewithds_sv[sim] <- wholewithds_result$sensval
+  # function to get chibarsq critical value if we run Cohen et al. (2020) as comparator
+  get_chibarsqcrit <- function(trueCor, K){ # can either use `wchibarsq()` for small K, simulate wts, or closed form for UB
+    wts<-numeric(K+1L)
+    if (trueCor == 0){ # trueCor is zero (i.e., covariance is identity); closed-form soln
+      V=diag(K)
+      wts[1]<-pmvnorm(rep(0,K),rep(Inf,K),sigma=solve(V))[[1]]
+      wts[K+1L]<-pmvnorm(rep(0,K), rep(Inf,K),sigma=V)[[1]]
+      for(i in seq(1L, K-1L, by=1L)) wts[i+1]= (2^(-K)*factorial(K))/(factorial(i)*factorial(K-i))
     }
-    split_sv[sim] <- analysis_result$sensval
+    else{
+      V = (1 - trueCor) * diag(K) + trueCor * matrix(1, K, K)
+      if (K<=12) { # `wchibarsq()` starts becoming intractable around K=12
+        wts = wchibarsq(solve(V))
+      } else { # have to simulate weights
+        nsim=1000000 # hyperparameter, typically works well in practice
+        for(sim in 1:nsim){
+          y = fourPNO::rmvnorm(n=1, mu=rep(0,K), sigma = V)
+          matprod=quadprog::solve.QP( Dmat = solve(V),
+                                      dvec = y%*%solve(V),
+                                      Amat = diag(1,K),
+                                      bvec = rep(0,K) )$solution
+          numpos=sum(matprod>1E-6)
+          wts[numpos+1] <- wts[numpos+1] + 1
+        }
+        wtsvec=wts/nsim
+        wts<-rev(wtsvec) #w_i(p,V) = w_{p-i}(p,V^{-1})
+      }
+    }
+    crit = qchibarsq(1-alpha, solve(V), wts) # note, if wts argument non-null, V vs. solve(V) doesnt matter
+    return(crit)
   }
+  if (run_comparators){
+    chibarsqcrit <- get_chibarsqcrit(correlation, length(Taus))
+  }
+  
+  #-----loop over simulations-----
+  if (parallel){
+    library(foreach)
+    library(doParallel)
+    library(doRNG)
+    num_cores <- detectCores() - 1 # used 10 cores for K=35 to avoid computer crashing, also used 10 cores for I = 10k
+    cl <- makeCluster(num_cores)
+    registerDoParallel(cl)
+    # registerDoRNG(seed = seed)
+    
+    objs <- ls(envir = .GlobalEnv)
+    funs <- objs[sapply(objs, function(x) is.function(get(x, envir = .GlobalEnv)))]
+
+    results <- foreach(sim = 1:nsim, .combine = cbind, .packages = c("quadprog"),
+                       .export = funs#c("psi","main_planning","main_fixedlam","chiBarSquaredTest",sub(".R.*", "", sub(".*/", "", file_vec)))
+                       ) %dopar% {
+                         
+      showDiagnostics = verbose = FALSE
+                         
+
+      # create and split synthetic data into planning and analysis samples
+      syntheticData = generateData(rho = correlation,
+                                   tauvec = Taus,
+                                   nostratum = nostratum)
+      Data_whole = syntheticData$normalData
+      planning_sample_size_sets <- floor(planning_sample_prop*nostratum)
+      ix_planning <- sort(sample(x=1:nostratum,size=planning_sample_size_sets))
+      ix_analysis <- (1:nostratum)[-ix_planning]
+      # split data and run our sensitivity analysis
+      # planning sample
+      Data_planning <- Data_whole$YData[ix_planning,]
+      planning_result <- main_planning(Data_planning, directions, method='PGD', 
+                                       psi.f=psi.f, numGamma=numGamma)
+      # analysis sample
+      Data_analysis <- Data_whole$YData[ix_analysis,]
+      analysis_result <- main_fixedlam(Data_analysis,
+                                       planning_result$lambda,
+                                       psi.f=psi.f,
+                                       numGamma=numGamma,
+                                       alpha=alpha)
+      split_sv <- analysis_result$sensval
+      if (run_comparators){ # run alternative sensitivity analyses
+        # Comparator: whole with search (Cohen et al. 2020)
+        Data_whole$s_k = apply(abs(Data_whole$YData), MARGIN = 2, FUN = median)
+        psi <- Vectorize( FUN = function(y){
+          return(sign(y)*(trim / (trim - inner)) * max(c(0, min(c(abs(y), trim)) - inner)))
+        })
+        experimentalSetup_whole = makeExperimentalSetupFromYData(Data_whole,psi)
+        Q_whole = experimentalSetup_whole$Q
+        Z_whole = experimentalSetup_whole$Z
+        index_whole = experimentalSetup_whole$index
+        matchedSetAssignments_whole = rep(0, ncol(Q_whole))
+        for(ind in 1:length(index_whole)){
+          matchedSetAssignments_whole[unlist(index_whole[ind])] = ind
+        }
+        wholewithsearch_result = chiBarSquaredTest(Q = Q_whole,
+                                                   matchedSetAssignments = matchedSetAssignments_whole,
+                                                   treatmentIndicator = Z_whole,
+                                                   numGamma = numGamma,
+                                                   alpha = alpha,
+                                                   directions = directions,
+                                                   step = 5,
+                                                   maxIter = 1000,
+                                                   trueCrit = chibarsqcrit,
+                                                   showDiagnostics = showDiagnostics,
+                                                   verbose = verbose,
+                                                   outputDirName = "Sims_Results_WholewithSearch")
+        # Comparator: whole with design sensitivity
+        wholewithds_result = main_fixedlam(Data_whole$YData,
+                                           lam_optdesignsens,
+                                           psi.f=psi.f,
+                                           numGamma=numGamma,
+                                           alpha=alpha)
+        wholewithsearch_sv <- wholewithsearch_result$LargestRejectGamma
+        wholewithds_sv <- wholewithds_result$sensval
+        return(c(split_sv, wholewithsearch_sv, wholewithds_sv))
+      } else{
+        return(split_sv)
+      }
+    }
+    
+    if (run_comparators){
+      split_sv <- as.numeric(results[1,])
+      wholewithsearch_sv <-as.numeric(results[2,])
+      wholewithds_sv <- as.numeric(results[3,])
+    } else {
+      split_sv <- as.numeric(results[1,])
+    }
+    
+    stopCluster(cl)
+    
+  } else{
+    for (sim in 1:nsim){
+      
+      cat('\n\n\n\n\nSIMULATION NUMBER: ', sim, '\n\n\n\n\n\n')
+      
+      # create and split synthetic data into planning and analysis samples
+      syntheticData = generateData(rho = correlation,
+                                   tauvec = Taus,
+                                   nostratum = nostratum)
+      Data_whole = syntheticData$normalData
+      planning_sample_size_sets <- floor(planning_sample_prop*nostratum)
+      ix_planning <- sort(sample(x=1:nostratum,size=planning_sample_size_sets))
+      ix_analysis <- (1:nostratum)[-ix_planning]
+      # split data and run our sensitivity analysis
+      # planning sample
+      Data_planning <- Data_whole$YData[ix_planning,]
+      planning_result <- main_planning(Data_planning, directions, method='PGD', 
+                                       psi.f=psi.f, numGamma=numGamma)
+      # analysis sample
+      Data_analysis <- Data_whole$YData[ix_analysis,]
+      analysis_result <- main_fixedlam(Data_analysis,
+                                       planning_result$lambda,
+                                       psi.f=psi.f,
+                                       numGamma=numGamma,
+                                       alpha=alpha)
+      if (run_comparators){ # run alternative sensitivity analyses
+        # Comparator: whole with search (Cohen et al. 2020)
+        Data_whole$s_k = apply(abs(Data_whole$YData), MARGIN = 2, FUN = median)
+        experimentalSetup_whole = makeExperimentalSetupFromYData(Data_whole,psi)
+        Q_whole = experimentalSetup_whole$Q
+        Z_whole = experimentalSetup_whole$Z
+        index_whole = experimentalSetup_whole$index
+        matchedSetAssignments_whole = rep(0, ncol(Q_whole))
+        for(ind in 1:length(index_whole)){
+          matchedSetAssignments_whole[unlist(index_whole[ind])] = ind
+        }
+        wholewithsearch_result = chiBarSquaredTest(Q = Q_whole,
+                                                   matchedSetAssignments = matchedSetAssignments_whole,
+                                                   treatmentIndicator = Z_whole,
+                                                   numGamma = numGamma,
+                                                   alpha = alpha,
+                                                   directions = directions,
+                                                   step = 5,
+                                                   maxIter = 1000,
+                                                   trueCrit = chibarsqcrit,
+                                                   showDiagnostics = F,
+                                                   verbose = F,
+                                                   outputDirName = "Sims_Results_WholewithSearch")
+        # Comparator: whole with design sensitivity
+        wholewithds_result = main_fixedlam(Data_whole$YData,
+                                           lam_optdesignsens,
+                                           psi.f=psi.f,
+                                           numGamma=numGamma,
+                                           alpha=alpha)
+        wholewithsearch_sv[sim] <- wholewithsearch_result$LargestRejectGamma
+        wholewithds_sv[sim] <- wholewithds_result$sensval
+      }
+      split_sv[sim] <- analysis_result$sensval
+    }
+  }
+  
+  
+  
+  
   # return metrics as a list called res
   res=list()
   res$split_sv <- split_sv
@@ -556,30 +688,105 @@ run_sim <- function(nostratum,
   return(res)
 }
 #----- Get simulation results -----
-nostratum = 1000
 
-# big setting: Taus = rep(c(-.5,.25,.5,.75,-.75),7)
-
-# setting A: Taus = rep(c(-.125,-.25,.05,.125,.25), 7)
-# setting B: Taus = rep(c(-.25,-.5,.1,.25,.5), 7)
 
 # setting mixed: Taus = rep(c(-.25,-.5,.1,.25,.5), 3)
-# setting sparse: Taus = rep(c(-.1,-.1,.1,.5,.5), 3)
+# setting sparse (old): Taus = rep(c(-.1,-.1,.1,.5,.5), 3)
 
-Taus = rep(c(-.1,-.1,.1,.5,.5), 3)
-directions = rep(c('Less','Less','Greater','Greater','Greater'), 3)
-correlation = 0
 run_comparators = TRUE
-nsim = 25
+if (run_comparators){
+  methodnames <- c('Analysis w/ Planning','Whole w/ Search', 'Whole w/ DS')
+} else {
+  methodnames <- c('Analysis w/ Planning')
+}
+nsim = 1000
 showDiagnostics = verbose = TRUE
+notify_done <- function(msg = "✅ R finished running!") {
+  sys <- Sys.info()[["sysname"]]
+  if (sys == "Windows") {
+    system(paste('msg *', shQuote(msg)))
+  } else if (sys == "Darwin") {
+    system(paste0("osascript -e 'display notification ", shQuote(msg), " with title \"R Alert\"'"))
+  } else if (sys == "Linux") {
+    system(paste('notify-send', shQuote(msg)))
+  } else {
+    message(msg)
+  }
+}
 
-sim_result=run_sim(nostratum=nostratum,
-                   Taus=Taus,
-                   directions=directions,
-                   correlation=correlation,
-                   run_comparators=run_comparators,
-                   nsim=nsim)
 
 
+nostratum = 300 # I \in {300,1000}
+
+for(numrep in c(1,3,5)){ # K \in {5,15,25}
+
+  for (corr_val in c(-0.2,0,0.2)){ # rho \in {-0.2, 0, 0.2}
+    
+    cat('\n\n\n\n\nNEW SIMULATION SETTING: ', '\nK =',numrep*5, 'Outcomes\nCorrelation =',corr_val,'\n\n\n\n\n\n')
+    
+    Taus = rep(c(.1,.1,.1,.1,.5), numrep)
+    directions = rep(c('Greater','Greater','Greater','Greater','Greater'), numrep)
+    
+    sim_result=run_sim(nostratum=nostratum,
+                       Taus=Taus,
+                       directions=directions,
+                       correlation=corr_val,
+                       run_comparators=run_comparators,
+                       nsim=nsim)
+    
+    save(sim_result, file=paste0('sparse-K',numrep*5,'-I',nostratum,'-cor',corr_val,'.RData'))
+    notify_done("🎯 All simulations completed successfully!")
+  }
+  
+}
+
+
+plots_list <- vector(mode="list",length=6)
+ix = 1
+useBW = T
+
+if (useBW) colorvals <- rep("grey20",3) else colorvals <- c("#8CBAD8", "#D3A46E", "#B8A3CD")
+
+for(corr_val in c(-0.2,0,0.2)){ # rho \in {-0.2, 0, 0.2}
+  
+  for (numrep in c(1,3,5)){ # K \in {5,15,25}
+    
+    if (numrep == 1) gammas_vector <- seq(from=1,to=4,by=.25)
+    if (numrep == 3) gammas_vector <- seq(from=1.5,to=9.5,by=.25)
+    if (numrep == 5) gammas_vector <- seq(from=2,to=16,by=.25)
+    
+    load(file=paste0('sparse-K',numrep*5,'-I',nostratum,'-cor',corr_val,'.RData'))
+    power_result <- lapply(sim_result,function(x)colSums(outer(x,gammas_vector,`>`))/nsim)
+    df <- data.frame(Gamma=rep(gammas_vector,length(methodnames)),
+                     Sensitivity=unlist(power_result),
+                     Method=rep(methodnames,each=length(gammas_vector)))
+    plt <- ggplot(df, aes(x=Gamma, y=Sensitivity)) +
+      geom_line(aes(linetype=Method, col=Method), size=1.3, alpha = 0.95) +
+      scale_color_manual(values = colorvals)+
+      scale_linetype_manual(values = c("solid", "dotted", "dashed")) +
+      labs(
+        x = expression(Gamma),
+        y = "Power"
+      ) +
+      theme_classic() +
+      theme(
+        legend.position = "none",
+        aspect.ratio = 1,
+        axis.line = element_blank(),
+        panel.border = element_rect(colour = "grey70", fill = NA, linewidth = 0.4),
+        axis.ticks = element_line(colour = "grey50", linewidth = 0.2),
+        axis.title = element_text(size = 13),
+        axis.text = element_text(size = 12, colour = "grey20"),
+        axis.ticks.length = unit(.1, "in")
+      ) + 
+      scale_x_continuous(breaks = scales::breaks_pretty(4))
+    plots_list[[ix]] <- plt
+    ix = ix+1
+  }
+  
+}
+
+combined_plt <- cowplot::plot_grid(plotlist = plots_list, ncol = 3)
+ggsave(paste0(if(useBW)'bw-','combinedplt-sparse-I',nostratum,'.pdf'), combined_plt, width = 12, height = 9, device = "pdf")
 
 

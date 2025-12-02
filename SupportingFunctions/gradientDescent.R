@@ -91,6 +91,15 @@ gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step, maxIter, betam,
       # find lambdastar and objective value
       outLambda <- innerSolve(rho, Q, TS, index)
       
+      # if(outLambda$optval < sqrt(crit_conservative)-1e-3)
+      # {
+      #   fBest = outLambda$optval
+      #   sBest <- s
+      #   rhoBest <- rho
+      #   lambdaBest <- outLambda$lambda
+      #   iter = maxIter + 1 #break out of the loop
+      # }
+      
       if(iter <= maxIter)
       {
         fval[iter] <- outLambda$optval
@@ -100,6 +109,13 @@ gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step, maxIter, betam,
           sBest <- s
           rhoBest <- rho
           lambdaBest <- outLambda$lambda
+        }
+        
+        # stop early if convergence criterion reached (error tolerance met for function
+        # values across window-size of ten iterations)
+        # note: this removes theoretical convergence guarantee, but is fine in practice and saves lots of time for bigger problems
+        if(iter > 100 && all(abs(diff(fval[(iter-10):iter])) < 1e-8)){
+          iter = maxIter + 1 #break out of the loop
         }
         
         if(iter <= maxIter){
@@ -120,11 +136,15 @@ gradientDescent <- function(Q, TS, index, Gamma, rho0, s0, step, maxIter, betam,
             s[i] <- outProject$s
           }
           
+          if(iter > 1 && (fval[iter]>=fval[iter-1])){
+            tt <- .9*tt
+          }
+          
           # iteration processing
           if(iter %% 10 == 0 && showDiagnostics == TRUE)
             cat("Iteration: ", iter, "    Obj. Val:", fval[iter], "\n")
           iter <- iter + 1
-          tt <- step/sqrt(iter)
+          # tt <- step/sqrt(iter)
         }else{
           iter = maxIter + 1#when we can't take gradients because we are at lambda = (0, 0)  we quit the loop
         }
