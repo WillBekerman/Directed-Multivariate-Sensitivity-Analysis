@@ -310,7 +310,17 @@ def load_labels(path: Path | None) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description="Render outcome tree from R-generated p-values.")
-    parser.add_argument("--gamma", type=float, required=True, help="Gamma value to plot.")
+    parser.add_argument(
+        "--gamma",
+        type=float,
+        help="Gamma value to plot (use --gammas for multiple).",
+    )
+    parser.add_argument(
+        "--gammas",
+        type=float,
+        nargs="+",
+        help="List of Gamma values to plot (overrides --gamma if provided).",
+    )
     parser.add_argument(
         "--input",
         type=Path,
@@ -321,7 +331,7 @@ def main():
         "--output",
         type=Path,
         default=None,
-        help="Where to write the plot. If omitted, saves to outcomes_tree_gamma<gamma>.pdf.",
+        help="Where to write the plot. If omitted, saves to <prefix>outcomes_tree_gamma<gamma>.pdf.",
     )
     parser.add_argument(
         "--show-values",
@@ -334,56 +344,76 @@ def main():
         default=None,
         help="Optional JSON mapping of raw variable names to display labels.",
     )
+    parser.add_argument(
+        "--prefix",
+        type=str,
+        default="",
+        help='Optional prefix applied to default input/output filenames (e.g., "unadj_" or "bonf_").',
+    )
     args = parser.parse_args()
 
+    gamma_list = args.gammas or ([args.gamma] if args.gamma is not None else None)
+    if not gamma_list:
+        raise SystemExit("Provide --gamma <val> or --gammas <v1> <v2> ...")
+
     try:
-        gamma_val = float(args.gamma)
+        gamma_values = [float(g) for g in gamma_list]
     except (TypeError, ValueError):
-        raise SystemExit(f"Gamma must be numeric; received {args.gamma!r}")
+        raise SystemExit(f"All gamma values must be numeric; received {gamma_list!r}")
 
-    gamma_label = f"{gamma_val:.2f}"
-    input_path = args.input
-    if input_path is None:
-        guess = Path(f"r_output/pvalues_gamma{gamma_label}.json")
-        input_path = guess if guess.exists() else Path("r_output/pvalues.json")
-
-    output_path = args.output or Path(f"outcomes_tree_gamma{gamma_label}.pdf")
-
-    print(f"Reading p-values from: {input_path}")
-    results = load_r_output(input_path)
-    gamma_key = None
-    if gamma_val in results:
-        gamma_key = gamma_val
-    else:
-        # tolerate tiny float differences or stringified keys
-        for k in results:
-            if isinstance(k, (int, float)) and isinstance(gamma_val, (int, float)):
-                try:
-                    if abs(k - gamma_val) < 1e-9:
-                        gamma_key = k
-                        break
-                except TypeError:
-                    pass
-            if str(k) == str(gamma_val):
-                gamma_key = k
-                break
-    if gamma_key is None:
-        available = ", ".join(str(g) for g in sorted(results.keys()))
-        raise SystemExit(f"Gamma {gamma_val} not found in input. Available: {available}")
-
-    pvals = results[gamma_key]
-    tree = derive_tree_from_pvals(pvals)
-    aligned_pvals = normalize_pvals(pvals)
     label_map = load_labels(args.labels or Path("r_output/labels.json"))
-    build_tree(
-        f"{float(gamma_key):.2f}" if isinstance(gamma_key, (int, float)) else str(gamma_key),
-        tree,
-        aligned_pvals,
-        str(output_path),
-        show_values=args.show_values,
-        label_map=label_map,
-    )
-    print(f"Saved plot to: {output_path}")
+
+    for gamma_val in gamma_values:
+        gamma_label = f"{gamma_val:.2f}"
+        input_path = args.input
+        if input_path is None:
+            guess = Path(f"r_output/{args.prefix}pvalues_gamma{gamma_label}.json")
+            input_path = guess if guess.exists() else Path(f"r_output/{args.prefix}pvalues.json")
+
+        if args.output:
+            output_path = args.output
+            if len(gamma_values) > 1:
+                output_path = output_path.with_name(
+                    f"{output_path.stem}_{gamma_label}{output_path.suffix}"
+                )
+        else:
+            output_path = Path(f"{args.prefix}outcomes_tree_gamma{gamma_label}.pdf")
+
+        print(f"Reading p-values from: {input_path} for Gamma={gamma_label}")
+        results = load_r_output(input_path)
+        gamma_key = None
+        if gamma_val in results:
+            gamma_key = gamma_val
+        else:
+            # tolerate tiny float differences or stringified keys
+            for k in results:
+                if isinstance(k, (int, float)) and isinstance(gamma_val, (int, float)):
+                    try:
+                        if abs(k - gamma_val) < 1e-9:
+                            gamma_key = k
+                            break
+                    except TypeError:
+                        pass
+                if str(k) == str(gamma_val):
+                    gamma_key = k
+                    break
+        if gamma_key is None:
+            available = ", ".join(str(g) for g in sorted(results.keys()))
+            print(f"Gamma {gamma_val} not found in input {input_path}. Available: {available}")
+            continue
+
+        pvals = results[gamma_key]
+        tree = derive_tree_from_pvals(pvals)
+        aligned_pvals = normalize_pvals(pvals)
+        build_tree(
+            f"{float(gamma_key):.2f}" if isinstance(gamma_key, (int, float)) else str(gamma_key),
+            tree,
+            aligned_pvals,
+            str(output_path),
+            show_values=args.show_values,
+            label_map=label_map,
+        )
+        print(f"Saved plot to: {output_path}")
 
 
 if __name__ == "__main__":

@@ -729,6 +729,144 @@ main_fixedlam_general <- function(dat, lam, psi.f='Huber', trim.in.vec=NULL, tri
   }
 }
 
+# Implements joint contrast estimation and inference on entire sample using chibarsq dist. at Gamma (see Cohen et al.)
+run_competitor <- function(dat, directions, psi.f='Huber', trim.in.vec=NULL, Gamma=1){
+  # check dat
+  stopifnot(!is.null(dat))
+  
+  # define M-statistic
+  if (is.null(psi.f)){ # we must have input trim and inner
+    trim <- trim.in.vec[1]
+    inner <- trim.in.vec[2]
+  } else { # we must have input psi.f \in {'Huber','InnerTrim'}
+    if (psi.f == 'Huber'){
+      trim = 2.5; inner = 0
+    } else if (psi.f == 'InnerTrim'){
+      trim = 2.5; inner = 0.5
+    }
+  }
+  param_list <- list(c(trim, inner))
+  
+  # define internal functions
+  get_Q <- function(dat){
+    psi <- function(y, trim, inner) {
+      sign(y) * (trim / (trim - inner)) * pmax(0, pmin(abs(y), trim) - inner)
+    }
+    
+    ymat=matrix(dat,nrow=nostratum,ncol=nvar)
+    Ypairs_normal = data.frame(ymat)
+    names(Ypairs_normal) <- as.character( outer('Y',1:nvar,paste0) )
+    YData = list(YData = data.frame(Ypairs = Ypairs_normal))
+    s = apply(abs(YData$YData), MARGIN = 2, FUN = function(x) median(x,na.rm=T))
+    indexRaw = seq(2, 2 * dim(YData$YData)[1], by = 2) # We set the first individual in each pair to be the control indiv.
+    Z = rep(0, 2 * dim(YData$YData)[1]) 
+    Z[indexRaw] = 1 # Sets up the indicator of treatment in accordance with the treatment indices.
+    Q = matrix(0, nrow = 2 * dim(YData$YData)[1], ncol = nvar)
+    YOverS = sweep(YData$YData, 2, s, "/")
+    tempmat = mapply(
+      FUN = function(col, params) {
+        psi(col, trim = params[1], inner = params[2])
+      },
+      col    = as.data.frame(YOverS),  # columns as list
+      params = param_list,
+      SIMPLIFY = FALSE
+    )
+    Q[indexRaw, ] = do.call(cbind, tempmat)
+    
+    Q[-indexRaw, ] = -Q[indexRaw, ]
+    Q = t(Q) # Transposes matrix for formatting's sake
+    numberOfTreatedIndividuals = length(indexRaw)
+    index <- list()
+    for(i in 1:length(indexRaw)){
+      index[[i]] <- c(indexRaw[i]-1,indexRaw[i])
+    }
+    matchedSetAssignments = rep(0, ncol(Q))
+    for(ind in 1:length(index))
+    {
+      matchedSetAssignments[unlist(index[ind])] = ind
+    }
+    list(Q=Q, matchedSetAssignments=matchedSetAssignments, Z=Z)
+  }
+  get_parts_of_deviate <- function(Q,gamma,Lweights){
+    tvec <- apply(Q,1,function(x)sum(x[seq(2,ncol(Q),2)])) # since we set first individual in each pair to be the control indiv.
+    tstat <- sum( Lweights*apply(Q,1,function(x)sum(x[seq(2,ncol(Q),2)])) )
+    newQ <- Lweights%*%Q
+    ymat=matrix(newQ,nrow=nostratum,ncol=2,byrow=T)
+    rhomat <- t(apply(ymat, 1, function(x) sort(x,index.return=T)$ix))
+    m=2;j=1;
+    pr <- c(rep(1, j), rep(gamma, m - j))/(j + ((m - j)*gamma))
+    rhomat[rhomat==1] <- pr[1]
+    rhomat[rhomat==2] <- pr[2]
+    
+    ### each variable
+    tvec <- evec <- rep(NA,nrow(Q))
+    covmat <- matrix(NA,nrow(Q),nrow(Q))
+    for (varnum in 1:nrow(Q)){
+      ymat=matrix(Q[varnum,],nrow=nostratum,ncol=2,byrow=T)
+      mu=diag(ymat %*% t(rhomat))
+      tstat <- as.vector(sum(ymat[, 2])) # since we set first individual in each pair to be the control indiv.
+      expect <- sum(mu)
+      tvec[varnum] <- tstat
+      evec[varnum] <- expect
+      ### each pair of variables
+      for (varnumnew in 1:varnum){
+        ymat.varnum=ymat
+        ymat.varnumnew=matrix(Q[varnumnew,],nrow=nostratum,ncol=2,byrow=T)
+        sigma2 <- as.vector(diag((ymat.varnum * ymat.varnumnew) %*% t(rhomat))) - (mu * as.vector(diag(ymat.varnumnew %*% t(rhomat))))
+        vartotal <- sum(sigma2)
+        covmat[varnumnew,varnum] <- vartotal
+      }
+    }
+    covmat[lower.tri(covmat)] <- t(covmat)[lower.tri(covmat)]
+    list(t=tvec,e=evec,covmat=covmat)
+  }
+  comparisonUnew <- function(Q,gamma,lam){
+    
+    partsofdev <- get_parts_of_deviate(Q,gamma,lam)
+    t <- partsofdev$t
+    e <- partsofdev$e
+    covmat <- partsofdev$covmat
+    dev <- as.numeric( t(lam)%*%(t-e) / (sqrt( t(lam)%*%covmat%*%lam )) )
+    
+    list(deviate=dev)
+  }
+  optim_comparison <- function(Q,gamma,lambda){
+    tmp<-comparisonUnew(Q,gamma,lambda)
+    return(tmp$deviate)
+  }
+  
+  # get Q matrix and scale by specified directions
+  nvar <- ncol(dat)
+  nostratum <- nrow(dat)
+  dat <- as.matrix(dat)
+  Qres <- get_Q(as.numeric(dat))
+  Q <- Qres$Q
+  nvar <- nrow(Q)
+  nostratum <- ncol(Q)/2
+  matchedSetAssignments <- Qres$matchedSetAssignments
+  Z <- Qres$Z
+  Q = t(scale(t(Q), center = FALSE, scale = TRUE)) # scale rows to have unit SD, don't center them (help with numerical stability)
+  directionsScaling = rep(1,length=nvar)
+  directionsScaling[directions=='Less'] = -1
+  Q = sweep(Q, MARGIN = 1, STATS = directionsScaling, FUN = "*")
+  
+  # get pval at specified Gamma
+  index = list()
+  for(ind in 1:length(unique(matchedSetAssignments))){
+    index[[ind]] = which(matchedSetAssignments == ind)
+  }
+  opt_results<-computeTestStatistic(Q, as.vector(Q%*%Z), index, Gamma, Z, alpha, step=5,
+                                    maxIter=1000, noCorBounds=T, useNormalQuantile=F) # uses (optimistic) speed-up
+  contrast<-opt_results$contrast/sum(opt_results$contrast)
+  contrast<-contrast*directionsScaling
+  sa_result <- comparisonUnew(Q,Gamma,lam=contrast/directionsScaling)
+  dev<-sa_result$deviate
+  p <- 1-pchibarsq(q=dev, V=opt_results$invcovmat) # use chibarsq reference dist.
+  
+  return(list(lambda=contrast,
+              pval=p))
+}
+
 # Used to write our results to JSON for plotting
 as_path <- function(name) {
   m <- regexec("^Ages([0-9]+to[0-9]+)_([MF])_(.+)$", name)
@@ -738,7 +876,7 @@ as_path <- function(name) {
     sex <- hits[3]
     list("All Outcomes", paste0("Ages ", rng), paste0(sex, ": ", rng), name)
   } else {
-    list("All Outcomes", name)  # fallback for non-standard names
+    list("All Outcomes", name)
   }
 }
 
@@ -1325,9 +1463,6 @@ mpdifs_analysis_12to17_f <- dat_outcomes_12to17_f[treated_12to17_f[ix_analysis_s
 mpdifs_analysis_8to11 <- rbind(mpdifs_analysis_8to11_m, mpdifs_analysis_8to11_f)
 mpdifs_analysis_12to17 <- rbind(mpdifs_analysis_12to17_m, mpdifs_analysis_12to17_f)
 
-
-
-
 gamma_vector <- c(1, 1.05, 1.15, 1.25, 1.5, 1.75, 2, 2.25, 2.5)
 
 for (gamma in gamma_vector){
@@ -1684,65 +1819,351 @@ for (gamma in gamma_vector){
     auto_unbox = TRUE,
     pretty = TRUE
   )
-  sort(round(adjp,3))
 
-
+  # Try adjusting also via Bonf.
+  adjp <- p.adjust(sort(unlist(lapply(nodes, function(x) x$p))), "bonferroni")
+  write_json(
+    list(list(
+      gamma = gamma,
+      pvalues = as.list(sort(adjp))
+    )),
+    paste0("r_output/bonf_pvalues_gamma",sprintf('%1.2f',gamma),".json"),
+    auto_unbox = TRUE,
+    pretty = TRUE
+  )
+  
 }
 
-
-
-
-
-
+qpdf::pdf_combine(
+  input = paste0('unadj_outcomes_tree_gamma',sprintf('%1.2f',gamma_vector),'.pdf'),
+  output = "unadj_outcomes_tree_gamma_combined.pdf"
+)
 qpdf::pdf_combine(
   input = paste0('outcomes_tree_gamma',sprintf('%1.2f',gamma_vector),'.pdf'),
   output = "outcomes_tree_gamma_combined.pdf"
 )
+qpdf::pdf_combine(
+  input = paste0('bonf_outcomes_tree_gamma',sprintf('%1.2f',gamma_vector),'.pdf'),
+  output = "bonf_outcomes_tree_gamma_combined.pdf"
+)
 
 
 
+################################################################################
+#  Compare to full-sample results
+################################################################################
+# Get paired differences on entire sample
+mpdifs_full_8to11_m <- dat_outcomes_8to11_m[treated_8to11_m,]-dat_outcomes_8to11_m[control_8to11_m,]
+mpdifs_full_8to11_f <- dat_outcomes_8to11_f[treated_8to11_f,]-dat_outcomes_8to11_f[control_8to11_f,]
+mpdifs_full_12to17_m <- dat_outcomes_12to17_m[treated_12to17_m,]-dat_outcomes_12to17_m[control_12to17_m,]
+mpdifs_full_12to17_f <- dat_outcomes_12to17_f[treated_12to17_f,]-dat_outcomes_12to17_f[control_12to17_f,]
+mpdifs_full_8to11 <- rbind(mpdifs_full_8to11_m, mpdifs_full_8to11_f)
+mpdifs_full_12to17 <- rbind(mpdifs_full_12to17_m, mpdifs_full_12to17_f)
 
-# # Examine uncorrected pvals without correction for multiple testing
-# lapply(ind_pvals_list, function(x) round(x,3))
-# res_analysis_8to11_m
-# res_analysis_8to11_f
-# res_analysis_8to11
-# res_analysis_12to17_m
-# res_analysis_12to17_f
-# res_analysis_12to17
-# root_pval
-# 
-# 
-# .05 / (length(adjp) - 7) # for regular Bonf. correction without inheritance
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# ### full sample differences
-# mpdifs_full_8to11_m <- dat_outcomes_8to11_m[treated_8to11_m,]-dat_outcomes_8to11_m[control_8to11_m,]
-# mpdifs_full_8to11_f <- dat_outcomes_8to11_f[treated_8to11_f,]-dat_outcomes_8to11_f[control_8to11_f,]
-# mpdifs_full_12to17_m <- dat_outcomes_12to17_m[treated_12to17_m,]-dat_outcomes_12to17_m[control_12to17_m,]
-# mpdifs_full_12to17_f <- dat_outcomes_12to17_f[treated_12to17_f,]-dat_outcomes_12to17_f[control_12to17_f,]
-# mpdifs_full_8to11 <- rbind(mpdifs_full_8to11_m, mpdifs_full_8to11_f)
-# mpdifs_full_12to17 <- rbind(mpdifs_full_12to17_m, mpdifs_full_12to17_f)
-# 
-# 
-# 
-# 
-# 
-# 
+gamma_vector <- c(1, 1.05, 1.15, 1.25, 1.5, 1.75, 2, 2.25, 2.5)
+
+for (gamma in gamma_vector){
+  
+  # Get p-values for each H_k (i.e., leaf node p-values) using one-sided tests
+  ind_pvals_list <- vector("list", length=4)
+  names(ind_pvals_list) <- c('Age 8-11, Male',
+                             'Age 8-11, Female',
+                             'Age 12-17, Male',
+                             'Age 12-17, Female')
+
+  # Ages 8-11, Male
+  # Calculate diet p-value, include remaining variables
+  mat_full_8to11_m_diet <- as.matrix(mpdifs_full_8to11_m[,19])
+  indp_full_8to11_m_diet <- main_fixedlam_general(mat_full_8to11_m_diet,
+                                                  -1,
+                                                  psi.f='Huber',
+                                                  Gamma=gamma)$pval
+  ind_pvals_list[[1]] <- c(mapply(
+    FUN = function(col) {main_fixedlam_general(as.matrix(col),1,psi.f='Huber',Gamma=gamma)$pval},
+    col = as.data.frame(mpdifs_full_8to11_m[,1:5]),
+    SIMPLIFY = F
+  ), indp_full_8to11_m_diet)
+  names(ind_pvals_list[[1]])[6] <- 'Diet'
+  # Ages 8-11, Female
+  # Calculate diet p-value, include remaining variables
+  mat_full_8to11_f_diet <- as.matrix(mpdifs_full_8to11_f[,19])
+  indp_full_8to11_f_diet <- main_fixedlam_general(mat_full_8to11_f_diet,
+                                                  -1,
+                                                  psi.f='Huber',
+                                                  Gamma=gamma)$pval
+  ind_pvals_list[[2]] <- c(mapply(
+    FUN = function(col) {main_fixedlam_general(as.matrix(col),1,psi.f='Huber',Gamma=gamma)$pval},
+    col = as.data.frame(mpdifs_full_8to11_f[,1:5]),
+    SIMPLIFY = F
+  ), indp_full_8to11_f_diet)
+  names(ind_pvals_list[[2]])[6] <- 'Diet'
+  
+  # Ages 12-17, Male
+  # Calculate diet p-value, include remaining variables
+  mat_full_12to17_m_diet <- as.matrix(mpdifs_full_12to17_m[,23])
+  indp_full_12to17_m_diet <- main_fixedlam_general(mat_full_12to17_m_diet,
+                                                   -1,
+                                                   psi.f='Huber',
+                                                   Gamma=gamma)$pval
+  ind_pvals_list[[3]] <- 
+    c(mapply(
+      FUN = function(col) {main_fixedlam_general(as.matrix(col),1,psi.f='Huber',Gamma=gamma)$pval},
+      col = as.data.frame(mpdifs_full_12to17_m[,1:2]),
+      SIMPLIFY = F),
+      mapply(
+        FUN = function(col) {main_fixedlam_general(as.matrix(col),-1,psi.f='Huber',Gamma=gamma)$pval},
+        col = as.data.frame(mpdifs_full_12to17_m[,3:4]),
+        SIMPLIFY = F),
+      mapply(
+        FUN = function(col) {main_fixedlam_general(as.matrix(col),1,psi.f='Huber',Gamma=gamma)$pval},
+        col = as.data.frame(mpdifs_full_12to17_m[,5:9]),
+        SIMPLIFY = F),
+      indp_full_12to17_m_diet)
+  names(ind_pvals_list[[3]])[10] <- 'Diet'
+  # Ages 12-17, Female
+  # Calculate diet p-value, include remaining variables
+  mat_full_12to17_f_diet <- as.matrix(mpdifs_full_12to17_f[,23])
+  indp_full_12to17_f_diet <- main_fixedlam_general(mat_full_12to17_f_diet,
+                                                   -1,
+                                                   psi.f='Huber',
+                                                   Gamma=gamma)$pval
+  ind_pvals_list[[4]] <- 
+    c(mapply(
+      FUN = function(col) {main_fixedlam_general(as.matrix(col),1,psi.f='Huber',Gamma=gamma)$pval},
+      col = as.data.frame(mpdifs_full_12to17_f[,1:2]),
+      SIMPLIFY = F),
+      mapply(
+        FUN = function(col) {main_fixedlam_general(as.matrix(col),-1,psi.f='Huber',Gamma=gamma)$pval},
+        col = as.data.frame(mpdifs_full_12to17_f[,3:4]),
+        SIMPLIFY = F),
+      mapply(
+        FUN = function(col) {main_fixedlam_general(as.matrix(col),1,psi.f='Huber',Gamma=gamma)$pval},
+        col = as.data.frame(mpdifs_full_12to17_f[,5:9]),
+        SIMPLIFY = F),
+      indp_full_12to17_f_diet)
+  names(ind_pvals_list[[4]])[10] <- 'Diet'
+
+  # Get global null p-values using directions we estimated on pilot data
+  # Ages 8-11
+  res_full_8to11_m <- run_competitor(as.matrix(mpdifs_full_8to11_m[,c(1:5,19)]),
+                                         c(rep('Greater',5),'Less'),
+                                         psi.f='Huber',
+                                         Gamma=gamma)$pval
+  res_full_8to11_f <- run_competitor(as.matrix(mpdifs_full_8to11_f[,c(1:5,19)]),
+                                     c(rep('Greater',5),'Less'),
+                                     psi.f='Huber',
+                                     Gamma=gamma)$pval
+  res_full_8to11 <- run_competitor(as.matrix(mpdifs_full_8to11[,c(1:5,19)]),
+                                   c(rep('Greater',5),'Less'),
+                                   psi.f='Huber',
+                                   Gamma=gamma)$pval
+  
+  # Ages 12-17
+  res_full_12to17_m <- run_competitor(as.matrix(mpdifs_full_12to17_m[,c(1:9,23)]),
+                                      c(rep('Greater',2),rep('Less',2),rep('Greater',5),'Less'),
+                                      psi.f='Huber',
+                                      Gamma=gamma)$pval
+  res_full_12to17_f <- run_competitor(as.matrix(mpdifs_full_12to17_f[,c(1:9,23)]),
+                                      c(rep('Greater',2),rep('Less',2),rep('Greater',5),'Less'),
+                                      psi.f='Huber',
+                                      Gamma=gamma)$pval
+  res_full_12to17 <- run_competitor(as.matrix(mpdifs_full_12to17[,c(1:9,23)]),
+                                    c(rep('Greater',2),rep('Less',2),rep('Greater',5),'Less'),
+                                    psi.f='Huber',
+                                    Gamma=gamma)$pval
+  # Get root p-value
+  if (any(c(res_full_8to11,
+            res_full_12to17)==0)
+  ){
+    root_pval=0
+  } else { # run Fisher combination on p-values to get root value
+    root_pval <- truncatedP(c(res_full_8to11,
+                              res_full_12to17),
+                            trunc=1)
+  }
+  
+  # Aggregate all p-values and run the inheritance procedure (Goeman & Finos, 2012)
+  nodes <- list(
+    #### ROOT NODE
+    Root = list(parents = character(0),
+                children = c("Ages8to11","Ages12to17"),
+                p = root_pval),
+    
+    #### AGEGRP NODES
+    Ages8to11 = list(parents = "Root",
+                     children = c("Ages8to11_M","Ages8to11_F"),
+                     p = res_full_8to11),
+    Ages12to17 = list(parents = "Root",
+                      children = c("Ages12to17_M","Ages12to17_F"),
+                      p = res_full_12to17),
+    
+    #### AGEGRP/SEX NODES
+    Ages8to11_M = list(parents = "Ages8to11",
+                       children = paste0("Ages8to11_M","_",c(outcome_names_8to11[1:5],'Diet')),
+                       p = res_full_8to11_m),
+    Ages8to11_F = list(parents = "Ages8to11",
+                       children = paste0("Ages8to11_F","_",c(outcome_names_8to11[1:5],'Diet')),
+                       p = res_full_8to11_f),
+    Ages12to17_M = list(parents = "Ages12to17",
+                        children = paste0("Ages12to17_M","_",c(all_outcome_names[1:9],'Diet')),
+                        p = res_full_12to17_m),
+    Ages12to17_F = list(parents = "Ages12to17",
+                        children = paste0("Ages12to17_F","_",c(all_outcome_names[1:9],'Diet')),
+                        p = res_full_12to17_f),
+    
+    #### OUTCOME NODES (LEAVES)                  
+    Ages8to11_M_BMXBMI = list(parents = "Ages8to11_M",
+                              children = character(0),
+                              p = as.numeric( ind_pvals_list[['Age 8-11, Male']]['BMXBMI'] )),
+    Ages8to11_M_waist_height = list(parents = "Ages8to11_M",
+                                    children = character(0),
+                                    p = as.numeric( ind_pvals_list[['Age 8-11, Male']]['waist_height'] )),
+    Ages8to11_M_LBXCOT = list(parents = "Ages8to11_M",
+                              children = character(0),
+                              p = as.numeric( ind_pvals_list[['Age 8-11, Male']]['LBXCOT'] )),
+    Ages8to11_M_sys_bp = list(parents = "Ages8to11_M",
+                              children = character(0),
+                              p = as.numeric( ind_pvals_list[['Age 8-11, Male']]['sys_bp'] )),
+    Ages8to11_M_non_HDL_chol = list(parents = "Ages8to11_M",
+                                    children = character(0),
+                                    p = as.numeric( ind_pvals_list[['Age 8-11, Male']]['non_HDL_chol'] )),
+    Ages8to11_M_Diet = list(parents = "Ages8to11_M",
+                            children = character(0),
+                            p = as.numeric( ind_pvals_list[['Age 8-11, Male']]['Diet'] )),
+    
+    Ages8to11_F_BMXBMI = list(parents = "Ages8to11_F",
+                              children = character(0),
+                              p = as.numeric( ind_pvals_list[['Age 8-11, Female']]['BMXBMI'] )),
+    Ages8to11_F_waist_height = list(parents = "Ages8to11_F",
+                                    children = character(0),
+                                    p = as.numeric( ind_pvals_list[['Age 8-11, Female']]['waist_height'] )),
+    Ages8to11_F_LBXCOT = list(parents = "Ages8to11_F",
+                              children = character(0),
+                              p = as.numeric( ind_pvals_list[['Age 8-11, Female']]['LBXCOT'] )),
+    Ages8to11_F_sys_bp = list(parents = "Ages8to11_F",
+                              children = character(0),
+                              p = as.numeric( ind_pvals_list[['Age 8-11, Female']]['sys_bp'] )),
+    Ages8to11_F_non_HDL_chol = list(parents = "Ages8to11_F",
+                                    children = character(0),
+                                    p = as.numeric( ind_pvals_list[['Age 8-11, Female']]['non_HDL_chol'] )),
+    Ages8to11_F_Diet = list(parents = "Ages8to11_F",
+                            children = character(0),
+                            p = as.numeric( ind_pvals_list[['Age 8-11, Female']]['Diet'] )),
+    
+    Ages12to17_M_BMXBMI = list(parents = "Ages12to17_M",
+                               children = character(0),
+                               p = as.numeric( ind_pvals_list[['Age 12-17, Male']]['BMXBMI'] )),
+    Ages12to17_M_waist_height = list(parents = "Ages12to17_M",
+                                     children = character(0),
+                                     p = as.numeric( ind_pvals_list[['Age 12-17, Male']]['waist_height'] )),
+    Ages12to17_M_moderate_leisure = list(parents = "Ages12to17_M",
+                                         children = character(0),
+                                         p = as.numeric( ind_pvals_list[['Age 12-17, Male']]['moderate_leisure'] )),
+    Ages12to17_M_vigorous_leisure = list(parents = "Ages12to17_M",
+                                         children = character(0),
+                                         p = as.numeric( ind_pvals_list[['Age 12-17, Male']]['vigorous_leisure'] )),
+    Ages12to17_M_LBXCOT = list(parents = "Ages12to17_M",
+                               children = character(0),
+                               p = as.numeric( ind_pvals_list[['Age 12-17, Male']]['LBXCOT'] )),
+    Ages12to17_M_sys_bp = list(parents = "Ages12to17_M",
+                               children = character(0),
+                               p = as.numeric( ind_pvals_list[['Age 12-17, Male']]['sys_bp'] )),
+    Ages12to17_M_LBXGH = list(parents = "Ages12to17_M",
+                              children = character(0),
+                              p = as.numeric( ind_pvals_list[['Age 12-17, Male']]['LBXGH'] )),
+    Ages12to17_M_non_HDL_chol = list(parents = "Ages12to17_M",
+                                     children = character(0),
+                                     p = as.numeric( ind_pvals_list[['Age 12-17, Male']]['non_HDL_chol'] )),
+    Ages12to17_M_eGFR = list(parents = "Ages12to17_M",
+                             children = character(0),
+                             p = as.numeric( ind_pvals_list[['Age 12-17, Male']]['eGFR'] )),
+    Ages12to17_M_Diet = list(parents = "Ages12to17_M",
+                             children = character(0),
+                             p = as.numeric( ind_pvals_list[['Age 12-17, Male']]['Diet'] )),
+    
+    Ages12to17_F_BMXBMI = list(parents = "Ages12to17_F",
+                               children = character(0),
+                               p = as.numeric( ind_pvals_list[['Age 12-17, Female']]['BMXBMI'] )),
+    Ages12to17_F_waist_height = list(parents = "Ages12to17_F",
+                                     children = character(0),
+                                     p = as.numeric( ind_pvals_list[['Age 12-17, Female']]['waist_height'] )),
+    Ages12to17_F_moderate_leisure = list(parents = "Ages12to17_F",
+                                         children = character(0),
+                                         p = as.numeric( ind_pvals_list[['Age 12-17, Female']]['moderate_leisure'] )),
+    Ages12to17_F_vigorous_leisure = list(parents = "Ages12to17_F",
+                                         children = character(0),
+                                         p = as.numeric( ind_pvals_list[['Age 12-17, Female']]['vigorous_leisure'] )),
+    Ages12to17_F_LBXCOT = list(parents = "Ages12to17_F",
+                               children = character(0),
+                               p = as.numeric( ind_pvals_list[['Age 12-17, Female']]['LBXCOT'] )),
+    Ages12to17_F_sys_bp = list(parents = "Ages12to17_F",
+                               children = character(0),
+                               p = as.numeric( ind_pvals_list[['Age 12-17, Female']]['sys_bp'] )),
+    Ages12to17_F_LBXGH = list(parents = "Ages12to17_F",
+                              children = character(0),
+                              p = as.numeric( ind_pvals_list[['Age 12-17, Female']]['LBXGH'] )),
+    Ages12to17_F_non_HDL_chol = list(parents = "Ages12to17_F",
+                                     children = character(0),
+                                     p = as.numeric( ind_pvals_list[['Age 12-17, Female']]['non_HDL_chol'] )),
+    Ages12to17_F_eGFR = list(parents = "Ages12to17_F",
+                             children = character(0),
+                             p = as.numeric( ind_pvals_list[['Age 12-17, Female']]['eGFR'] )),
+    Ages12to17_F_Diet = list(parents = "Ages12to17_F",
+                             children = character(0),
+                             p = as.numeric( ind_pvals_list[['Age 12-17, Female']]['Diet'] ))
+  )
+  
+  nodes <- nodes[as.logical(unlist(lapply(nodes,function(x)!is.null(x))))]
+  
+  # Un-adjusted p-values
+  write_json(
+    list(list(
+      gamma = gamma,
+      pvalues = as.list(sort(unlist(lapply(nodes, function(x) x$p))))
+    )),
+    paste0("r_output/cohen_unadj_pvalues_gamma",sprintf('%1.2f',gamma),".json"),
+    auto_unbox = TRUE,
+    pretty = TRUE
+  )
+  
+  # Get adjusted p-values
+  adjp <- run_inheritance(nodes, Shaffer = TRUE, homogeneous = FALSE)
+  write_json(
+    list(list(
+      gamma = gamma,
+      pvalues = as.list(sort(adjp))
+    )),
+    paste0("r_output/cohen_pvalues_gamma",sprintf('%1.2f',gamma),".json"),
+    auto_unbox = TRUE,
+    pretty = TRUE
+  )
+  
+  # Try adjusting also via Bonf.
+  adjp <- p.adjust(sort(unlist(lapply(nodes, function(x) x$p))), "bonferroni")
+  write_json(
+    list(list(
+      gamma = gamma,
+      pvalues = as.list(sort(adjp))
+    )),
+    paste0("r_output/cohen_bonf_pvalues_gamma",sprintf('%1.2f',gamma),".json"),
+    auto_unbox = TRUE,
+    pretty = TRUE
+  )
+  
+}
+
+qpdf::pdf_combine(
+  input = paste0('cohen_unadj_outcomes_tree_gamma',sprintf('%1.2f',gamma_vector),'.pdf'),
+  output = "cohen_unadj_outcomes_tree_gamma_combined.pdf"
+)
+qpdf::pdf_combine(
+  input = paste0('cohen_outcomes_tree_gamma',sprintf('%1.2f',gamma_vector),'.pdf'),
+  output = "cohen_outcomes_tree_gamma_combined.pdf"
+)
+qpdf::pdf_combine(
+  input = paste0('cohen_bonf_outcomes_tree_gamma',sprintf('%1.2f',gamma_vector),'.pdf'),
+  output = "cohen_bonf_outcomes_tree_gamma_combined.pdf"
+)
+
+
+

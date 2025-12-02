@@ -43,5 +43,5 @@ computeTestStatistic = function(Q, TS, index, Gamma, Z, alpha, step, maxIter,
                              step = step, maxIter = maxIter, betam=BETA, alpha = alpha, Z=Z,
                              trueCrit = trueCrit, noCorBounds = noCorBounds, useNormalQuantile = useNormalQuantile)
   
-  return(list(reject = outGrad$reject, contrast = outGrad$lambdas))
+  return(list(reject = outGrad$reject, contrast = outGrad$lambdas, invcovmat = outGrad$invcovmat))
 }
